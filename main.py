@@ -4,13 +4,14 @@ from random import shuffle
 import torch
 
 import utils
-import dataset.image_datasets
+import dataset.datasets
 import batch_gen
 #import optimizers
 
 import models.model
 import gan_loss
 import training
+import signal
 
 
 utils.flags.DEFINE_string("action", 'train', "action to do [train]")
@@ -25,7 +26,7 @@ utils.flags.DEFINE_integer("output_size", 64, "The size of the output images to 
 utils.flags.DEFINE_integer("sample_size", 64, "The number of sample images [64]")
 utils.flags.DEFINE_integer("sample_step", 500, "The interval of generating sample. [500]")
 utils.flags.DEFINE_integer("save_step", 500, "The interval of saveing checkpoints. [500]")
-utils.flags.DEFINE_string("dataset", "celebA", "The name of dataset [celebA, mnist, lsun]")
+utils.flags.DEFINE_string("dataset", "celeba", "The name of dataset [celebA, mnist, lsun]")
 utils.flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 utils.flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 utils.flags.DEFINE_string("log_dir", "log", "Directory name to save the logs [log]")
@@ -47,121 +48,119 @@ def main(_):
         batch_size = FLAGS.sample_size
 
     #dataset
-    if FLAGS.dataset == 'celebA':
-        ds = dataset.image_datasets.CelebA(batch_size = batch_size, output_shapes = [(FLAGS.output_size,FLAGS.output_size)])
-    elif FLAGS.dataset == 'imageNet':
-        ds = dataset.image_datasets.ImageNet(batch_size = batch_size, output_shapes = [(FLAGS.output_size,FLAGS.output_size)])
-    elif FLAGS.dataset == 'lsun_bedroom':
-        ds = dataset.image_datasets.LSunBedroom(batch_size = batch_size, output_shapes = [(FLAGS.output_size,FLAGS.output_size)], center_crop = (256, 256))
-    else:
-        raise ValueError('Unknown dataset')
+    ds = dataset.datasets.from_name(FLAGS.dataset, batch_size = batch_size, output_size=(FLAGS.output_size, FLAGS.output_size))
 
-    batch = batch_gen.ThreadedBatch(batch_gen.BatchWithNoise(ds, z_dim = FLAGS.z_dim))
+    with batch_gen.ThreadedBatch(batch_gen.BatchWithNoise(ds, z_dim = FLAGS.z_dim)) as batch:
+        #initialize device
+        is_cuda = torch.cuda.is_available()
+        if is_cuda:
+            cur_device = torch.cuda.current_device()
+            device = torch.device('cuda:'+str(cur_device))
+            print ('CUDA device: ' + torch.cuda.get_device_name(cur_device))
+        else:
+            device = torch.device('cpu:0')
+            print ('CUDA not available')
 
-    #model
-    is_cuda = torch.cuda.is_available()
-    print ('CUDA available:' + str(is_cuda))
-    device = torch.device("cuda:0" if is_cuda else "cpu")
-    nn_model = models.model.ResidualModel(device=device, batch = batch, g_tanh = False, g_act = 'LeakyReLU', d_act = 'LeakyReLU', batch_norm = True)
+        #model
+        nn_model = models.model.DeepResidualModel(device=device, batch = batch, g_tanh = False, g_act = 'LeakyReLU', d_act = 'LeakyReLU', batch_norm = True)
 
-    trainer = training.Trainer(model = nn_model, batch = batch, loss = gan_loss.js_loss, lr = FLAGS.learning_rate, reg = 'gp', lambd = 10.)
-    #trainer = training.TrainerAv(model = nn_model, batch = batch, loss = gan_loss.js_loss, lr = FLAGS.learning_rate, reg = 'gp', lambd = 10., n_substeps = 10)
-    trainer.sub_batches = FLAGS.batch_per_update
+        trainer = training.Trainer(model = nn_model, batch = batch, loss = gan_loss.js_loss, lr = FLAGS.learning_rate, reg = 'gp', lambd = 10.)
+        trainer.sub_batches = FLAGS.batch_per_update
 
-    model_dir = "%s_%s_%s" % (FLAGS.dataset, FLAGS.batch_size, FLAGS.output_size)
-    save_dir = os.path.join(FLAGS.checkpoint_dir, model_dir)
-    
-    # load the latest checkpoints
-    if nn_model.load_checkpoint(save_dir):
-        print ('[*] checkpoint loaded')
-    else:
-        print ('[*] checkpoint not found')
+        model_dir = "%s_%s_%s" % (FLAGS.dataset, FLAGS.batch_size, FLAGS.output_size)
+        save_dir = os.path.join(FLAGS.checkpoint_dir, model_dir)
 
-    if FLAGS.action == 'sample':
-        batch_z, batch_images = batch.get_batch()
-        img = trainer.sample(batch_z)
+        # load the latest checkpoints
+        if nn_model.load_checkpoint(save_dir):
+            print ('[*] checkpoint loaded')
+        else:
+            print ('[*] checkpoint not found')
 
-        n = int(np.sqrt(FLAGS.sample_size))
+        if FLAGS.action == 'sample':
+            batch_z, batch_images = batch.get_batch()
+            img = trainer.sample(batch_z)
 
-        n_file = np.random.randint(10000)
-        utils.save_images(img[:n*n], [n, n], './{}/sample_{:06d}.png'.format(FLAGS.sample_dir, n_file))
-        print("Images saved")
+            n = int(np.sqrt(FLAGS.sample_size))
 
-    elif FLAGS.action == 'train':
-        sample_seed, sample_images = batch.get_samples(FLAGS.sample_size)
+            n_file = np.random.randint(10000)
+            utils.save_images(img[:n*n], [n, n], './{}/sample_{:06d}.png'.format(FLAGS.sample_dir, n_file))
+            print("Images saved")
 
-        ##========================= TRAIN MODELS ================================##
-        iter_counter = 0
-        batches_per_epoch = 10000
-        total_time = 0
+        elif FLAGS.action == 'train':
+            sample_seed, sample_images = batch.get_samples(FLAGS.sample_size)
 
-        d_loss_array = []
-        time_array = []
-        
-        score_array = []
-        score_time_array = []
+            ##========================= TRAIN MODELS ================================##
+            iter_counter = 0
+            batches_per_epoch = 10000
+            total_time = 0
 
-        #print('Pretraining discriminator')
-        #n_pretrain_steps = 100
-        #for i in range(n_pretrain_steps):
-        #    batch_z, batch_images = batch.get_batch()
-        #    errD, errS, _ = sess.run([d_loss_orig, s, d_optim], feed_dict={z: batch_z, real_images: batch_images })
-        #    if i % 10 == 0:
-        #        print ("[%2d/%2d]" % (i, n_pretrain_steps))
-        #print('Done')
+            d_loss_array = []
+            time_array = []
 
-        for epoch in range(FLAGS.epoch):
-            for b in range(batches_per_epoch):
-                start_time = time.time()
+            score_array = []
+            score_time_array = []
 
-                # updates the discriminator
-                #if iter_counter < 1000:
-                #    d_iter = 10
-                #else:
-                #    d_iter = 2
-                d_iter = 2
+            #print('Pretraining discriminator')
+            #n_pretrain_steps = 100
+            #for i in range(n_pretrain_steps):
+            #    batch_z, batch_images = batch.get_batch()
+            #    errD, errS, _ = sess.run([d_loss_orig, s, d_optim], feed_dict={z: batch_z, real_images: batch_images })
+            #    if i % 10 == 0:
+            #        print ("[%2d/%2d]" % (i, n_pretrain_steps))
+            #print('Done')
 
-                errD, s, errG = trainer.update(d_iter, 1)
+            for epoch in range(FLAGS.epoch):
+                for b in range(batches_per_epoch):
+                    start_time = time.time()
 
-                end_time = time.time()
+                    # updates the discriminator
+                    #if iter_counter < 1000:
+                    #    d_iter = 10
+                    #else:
+                    #    d_iter = 2
+                    d_iter = 2
 
-                iter_time = end_time - start_time
-                total_time += iter_time
+                    errD, s, errG = trainer.update(d_iter, 1)
 
-                print("[%2d/%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, s: %.4f, g_loss: %.8f" % (epoch, FLAGS.epoch, b+1, batches_per_epoch, iter_time, errD, s, errG))
+                    end_time = time.time()
 
-                time_array.append(total_time)
-                d_loss_array.append(errD)
+                    iter_time = end_time - start_time
+                    total_time += iter_time
 
-                iter_counter += 1
-                #if np.mod(iter_counter, 1000) == 0:
-                #    sess.run(lambd.assign(tf.maximum(lambd/2., 1e-2)))
+                    print("[%2d/%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, s: %.4f, g_loss: %.8f" % (epoch, FLAGS.epoch, b+1, batches_per_epoch, iter_time, errD, s, errG))
 
-                if np.mod(iter_counter, FLAGS.sample_step) == 0 or iter_counter == 1:
-                    img = trainer.sample(sample_seed)
+                    time_array.append(total_time)
+                    d_loss_array.append(errD)
 
-                    n = int(np.sqrt(FLAGS.sample_size))
-                    utils.save_images(img, [n, n], './{}/train_{:02d}_{:04d}.png'.format(FLAGS.sample_dir, epoch, b+1))
-                    print("[Sample] d_loss: %.8f, g_loss: %.8f" % (errD, errG))
+                    iter_counter += 1
+                    #if np.mod(iter_counter, 1000) == 0:
+                    #    sess.run(lambd.assign(tf.maximum(lambd/2., 1e-2)))
 
-                    #m_score = evaluation.evaluation.evaluate(sess, trainer, batch, 'is')
-                    #score_array.append(m_score)
-                    #score_time_array.append(total_time)
+                    if np.mod(iter_counter, FLAGS.sample_step) == 0 or iter_counter == 1:
+                        img = trainer.sample(sample_seed)
 
-                    np.savez(os.path.join(FLAGS.log_dir, 'log.npz'), loss = d_loss_array, time = time_array)
+                        n = int(np.sqrt(FLAGS.sample_size))
+                        utils.save_images(img, [n, n], './{}/train_{:02d}_{:04d}.png'.format(FLAGS.sample_dir, epoch, b+1))
+                        print("[Sample] d_loss: %.8f, g_loss: %.8f" % (errD, errG))
 
-                if np.mod(iter_counter, FLAGS.save_step) == 0:
-                    # save current network parameters
-                    print("[*] Saving checkpoints...")
-                    nn_model.save_checkpoint(save_dir)
-                    print("[*] Saving checkpoints SUCCESS!")
-        
-        print("[*] Saving checkpoints...")
-        nn_model.save_checkpoint(save_dir)
-        print("[*] Saving checkpoints SUCCESS!")
-    
-    else:
-        raise ValueError('unknown action')
+                        #m_score = evaluation.evaluation.evaluate(sess, trainer, batch, 'is')
+                        #score_array.append(m_score)
+                        #score_time_array.append(total_time)
+
+                        np.savez(os.path.join(FLAGS.log_dir, 'log.npz'), loss = d_loss_array, time = time_array)
+
+                    if np.mod(iter_counter, FLAGS.save_step) == 0:
+                        # save current network parameters
+                        print("[*] Saving checkpoints...")
+                        nn_model.save_checkpoint(save_dir)
+                        print("[*] Saving checkpoints SUCCESS!")
+
+            print("[*] Saving checkpoints...")
+            nn_model.save_checkpoint(save_dir)
+            print("[*] Saving checkpoints SUCCESS!")
+
+        else:
+            raise ValueError('unknown action')
 
 if __name__ == '__main__':
-   main('')
+    main('')

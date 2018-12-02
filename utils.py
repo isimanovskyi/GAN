@@ -7,18 +7,23 @@ import imageio
 class flags(object):
     g_parser = argparse.ArgumentParser()
 
+    @staticmethod
     def DEFINE_string(name, default, help):
         flags.g_parser.add_argument('--'+name, default=default, type=str, help=help)
 
+    @staticmethod
     def DEFINE_integer(name, default, help):
         flags.g_parser.add_argument('--'+name, default=default, type=int, help=help)
 
+    @staticmethod
     def DEFINE_float(name, default, help):
         flags.g_parser.add_argument('--'+name, default=default, type=float, help=help)
 
+    @staticmethod
     def DEFINE_boolean(name, default, help):
         flags.g_parser.add_argument('--'+name, default=default, type=bool, help=help)
 
+    @staticmethod
     def FLAGS():
         args = flags.g_parser.parse_args()
         return args

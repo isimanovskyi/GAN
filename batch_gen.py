@@ -1,18 +1,49 @@
 import numpy as np
-from multiprocessing import Queue
+import multiprocessing
 import threading
+import time
 
 class ThreadedBatch(object):
     def __init__(self, batch, queue_size = 10):
         self.batch = batch
-        self.queue = Queue(queue_size)
-        
+        self.queue = multiprocessing.Queue(queue_size)
+
+        #launch thread
+        self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self.thread_proc)
         self.thread.start()
 
+    def shutdown(self):
+        if self.thread is None:
+            return
+
+        self.stop_event.set()
+        self.thread.join()
+
+        self.stop_event = None
+        self.thread = None
+
+    def __del__(self):
+        self.shutdown()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.shutdown()
+        return True
+
     def thread_proc(self):
-        while True:
-            self.queue.put(self.batch.get_batch())
+        while not self.stop_event.is_set():
+            self.put_to_queue(self.batch.get_batch())
+        print ('thread exited')
+
+    def put_to_queue(self, batch):
+        while not self.stop_event.is_set():
+            try:
+                self.queue.put(batch, False)
+            except multiprocessing.queues.Full as e:
+                time.sleep(0.01)
 
     def get_size(self):
         return self.batch.get_size()
@@ -34,7 +65,6 @@ class ThreadedBatch(object):
 
     def get_image_shape(self):
         return self.batch.get_image_shape()
-
 
 class BatchWithNoise(object):
     def __init__(self, dataset, z_dim = 100):
