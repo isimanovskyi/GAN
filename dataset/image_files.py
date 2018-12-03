@@ -28,6 +28,7 @@ class ImageFiles(object):
 
         self.valid_files = self.data_files[0:300]
         self.data_files = self.data_files[300:]
+        shuffle(self.data_files)
         
         self.n_batch = 0
         self.n_batches = len(self.data_files) // batch_size
