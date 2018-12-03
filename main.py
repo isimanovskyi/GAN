@@ -62,7 +62,7 @@ def main(_):
             print ('CUDA not available')
 
         #model
-        nn_model = models.model.DeepResidualModel(device=device, batch = batch, g_tanh = False, g_act = 'LeakyReLU', d_act = 'LeakyReLU', batch_norm = True)
+        nn_model = models.model.DeepResidualModel(device=device, batch = batch, g_tanh = True, g_act = 'LeakyReLU', d_act = 'LeakyReLU', batch_norm = True)
 
         trainer = training.Trainer(model = nn_model, batch = batch, loss = gan_loss.js_loss, lr = FLAGS.learning_rate, reg = 'gp', lambd = 10.)
         trainer.sub_batches = FLAGS.batch_per_update

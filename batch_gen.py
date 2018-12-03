@@ -36,12 +36,12 @@ class ThreadedBatch(object):
     def thread_proc(self):
         while not self.stop_event.is_set():
             self.put_to_queue(self.batch.get_batch())
-        print ('thread exited')
 
     def put_to_queue(self, batch):
         while not self.stop_event.is_set():
             try:
                 self.queue.put(batch, False)
+                return
             except multiprocessing.queues.Full as e:
                 time.sleep(0.01)
 

@@ -148,7 +148,7 @@ class Trainer(object):
 
         with torch.autograd.no_grad():
             gen_samples = self.model.g_model(z)
-            gen_samples = torch.clamp(gen_samples, -1, 1)
+            gen_samples = torch.clamp(gen_samples, -1., 1.)
             res = gen_samples.cpu().data.numpy()
 
         torch.cuda.empty_cache()
