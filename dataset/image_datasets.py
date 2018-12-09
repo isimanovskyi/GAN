@@ -3,22 +3,22 @@ import dataset.image_files
 
 class CelebA(dataset.image_files.ImageFiles):
     name = 'celeba'
-    path = os.path.join('./data', name)
 
-    def __init__(self, batch_size, grayscale = False, output_shapes = None, center_crop = None):
-        super(CelebA, self).__init__(os.path.join(CelebA.path, '*.jpg'), batch_size, grayscale, output_shapes, center_crop)
+    def __init__(self, data_folder, batch_size, grayscale = False, output_shapes = None, center_crop = None):
+        path = os.path.join(data_folder, CelebA.name, '*.jpg')
+        super(CelebA, self).__init__(path, batch_size, grayscale, output_shapes, center_crop)
 
 class ImageNet(dataset.image_files.ImageFiles):
     name = 'imagenet'
-    path = os.path.join('./data', name)
 
-    def __init__(self, batch_size, grayscale = False, output_shapes = None, center_crop = None):
-        super(ImageNet, self).__init__(os.path.join(ImageNet.path, "*.png"), batch_size, grayscale, output_shapes, center_crop)
+    def __init__(self, data_folder, batch_size, grayscale = False, output_shapes = None, center_crop = None):
+        path = os.path.join(data_folder, ImageNet.name, '*.png')
+        super(ImageNet, self).__init__(path, batch_size, grayscale, output_shapes, center_crop)
 
 class LSunBedroom(dataset.image_files.ImageFiles):
     name = 'lsun_bedroom'
-    path = "./data/lsun/bedroom"
 
-    def __init__(self, batch_size, grayscale = False, output_shapes = None, center_crop = None):
-        super(LSunBedroom, self).__init__(os.path.join(LSunBedroom.path, "*.jpg"), batch_size, grayscale, output_shapes, center_crop)
+    def __init__(self, data_folder, batch_size, grayscale = False, output_shapes = None, center_crop = None):
+        path = os.path.join(data_folder, 'lsun/bedroom', '*.jpg')
+        super(LSunBedroom, self).__init__(path, batch_size, grayscale, output_shapes, center_crop)
 

@@ -13,27 +13,36 @@ def get_same_padding(kernel_size):
     p1 = get_axis_same_padding(kernel_size[1])
     return (p0,p1)
 
-def activation_from_string(act):
-    if act == 'relu':
-        return torch.nn.Relu()
+class ActivationBlock(torch.nn.Module):
+    def __init__(self, act, **kwargs):
+        super(ActivationBlock, self).__init__(**kwargs)
 
-    elif act == 'LeakyReLU':
-        return torch.nn.LeakyReLU(0.2)
+        if isinstance(act, str):
+            if act == 'relu':
+                self.act = torch.nn.Relu()
 
-    elif act == 'tanh':
-        return torch.nn.Tanh()
-    #elif act == 'alt':
-    #    def f(x):
-    #        return tf.where(x < -1., 0.2*x-0.8, tf.where(x > 1., 0.2*x+0.8, x))
-    #    return tf.keras.layers.Activation(f)
-    else:
-        raise ValueError('Unknown activation')
+            elif act == 'LeakyReLU':
+                self.act = torch.nn.LeakyReLU(0.2)
+
+            elif act == 'tanh':
+                self.act = torch.nn.Tanh()
+            # elif act == 'alt':
+            #    def f(x):
+            #        return tf.where(x < -1., 0.2*x-0.8, tf.where(x > 1., 0.2*x+0.8, x))
+            #    return tf.keras.layers.Activation(f)
+            else:
+                raise ValueError('Unknown activation')
+        else:
+            self.act = act
+
+    def forward(self, x):
+        return self.act(x)
 
 class ResidualBlock(torch.nn.Module):
     def __init__(self, in_filters, out_filters, kernel_size, activation, **kwargs):
         super(ResidualBlock, self).__init__(**kwargs)
 
-        self.activation = activation
+        self.activation = ActivationBlock(activation)
 
         self.conj_conv = None
         if in_filters != out_filters:
@@ -45,7 +54,6 @@ class ResidualBlock(torch.nn.Module):
     def forward(self, x):
         if self.conj_conv:
             z = self.conj_conv(x)
-            #z = self.activation(z)
         else:
             z = x
 
@@ -147,10 +155,7 @@ class SequentialContainer(object):
         self.input_shape = (np.prod(self.input_shape),)
 
     def add_Activation(self, act):
-        if type(act) is str:
-            self.layers.append(activation_from_string(act))
-        else:
-            self.layers.append(act)
+        self.layers.append(ActivationBlock(act))
 
     def add_Residual(self, filters, kernel_size, activation):
         if len(self.input_shape) != 3:
@@ -172,12 +177,12 @@ class ModelBase(object):
             self.g_tanh = False
 
         if 'g_act' in kwargs.keys():
-            self.g_act = activation_from_string(kwargs['g_act'])
+            self.g_act = kwargs['g_act']
         else:
             self.g_act = torch.nn.LeakyReLU(0.2)
 
         if 'd_act' in kwargs.keys():
-            self.d_act = activation_from_string(kwargs['d_act'])
+            self.d_act = kwargs['d_act']
         else:
             self.d_act = torch.nn.LeakyReLU(0.2)
 
@@ -225,7 +230,11 @@ class ModelBase(object):
 
         d_file, g_file = self.get_nn_files(path)
 
-        self._load_weights(self.d_model, d_file)
-        self._load_weights(self.g_model, g_file)
-        return True
+        try:
+            self._load_weights(self.d_model, d_file)
+            self._load_weights(self.g_model, g_file)
+            return True
+
+        except:
+            return False
 

@@ -9,11 +9,6 @@ import utils
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-def normalize(img):
-    img = np.array(img).astype(np.float32)
-    img = img/127.5 - 1.
-    return img
-
 class ImageFiles(object):
     def __init__(self, path, batch_size, grayscale = False, output_shapes = None, center_crop = None):
         self.grayscale = grayscale
@@ -61,6 +56,11 @@ class ImageFiles(object):
             res.append(np.array([self.get_image(file, sh) for file in files]))
         return res
 
+    @staticmethod
+    def normalize(img):
+        img = np.array(img).astype(np.float32)
+        img = img / 127.5 - 1.
+        return img
 
     def get_image(self, path, output_shape):
         if (self.grayscale):
@@ -89,8 +89,8 @@ class ImageFiles(object):
             img = img[y:y+crop_h, x:x+crop_w]
 
         if output_shape is not None:
-            img = normalize(scipy.misc.imresize(img, output_shape))
+            img = ImageFiles.normalize(scipy.misc.imresize(img, output_shape))
         else:
-            img = normalize(img)
+            img = ImageFiles.normalize(img)
         img = np.rollaxis(img,2,0)
         return img

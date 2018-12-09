@@ -10,7 +10,7 @@ class RMSpropEx(torch.optim.Optimizer):
         if not 0.0 <= alpha:
             raise ValueError("Invalid alpha value: {}".format(alpha))
 
-        defaults = dict(lr=lr, alpha=alpha, beta=beta, eps=eps, av_norm=None,step=0)
+        defaults = dict(lr=lr, alpha=alpha, beta=beta, eps=eps, step=0)
         super(RMSpropEx, self).__init__(params, defaults)
 
     def __setstate__(self, state):
@@ -76,15 +76,15 @@ class RMSpropEx(torch.optim.Optimizer):
                 else:
                     update_norm += (update ** 2).sum()
 
-            av_norm = group['av_norm']
-            if av_norm is None:
+            if 'av_norm' in group.keys():
+                av_norm = group['av_norm']
+            else:
                 av_norm = torch.zeros(1, device=device)
                 group['av_norm'] = av_norm
 
             update_norm = update_norm.sqrt()
             av_norm.mul_(beta).add_((1 - beta)*update_norm)
 
-            #update_norm = torch.where(update_norm > 2*av_norm, update_norm/2., av_norm)
             update_norm = av_norm*norm_bias_correction + eps
 
             for p, update in zip(group['params'], updates):

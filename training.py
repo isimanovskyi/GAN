@@ -27,18 +27,15 @@ class Trainer(object):
         return reg
 
     def _get_gp_reg(self, img, gen_samples):
-        batch_size = img.size(0)
-
         epsilon = torch.rand(img.shape[0], device=self.model.device).reshape((img.shape[0],1,1,1))
 
         t = img + epsilon * (gen_samples - img)
-        t = t.detach()
+        t.detach_()
         t.requires_grad = True
 
         d = self.model.d_model(t)
-
-        grads = torch.autograd.grad(d.sum(), t, retain_graph=True, create_graph=True, only_inputs=True)[0]        
-        reg = grads.pow(2).view(batch_size, -1).sum(1).mean()
+        grads = torch.autograd.grad(d.sum(), t, retain_graph=True, create_graph=True, only_inputs=True)[0]
+        reg = grads.pow(2).view(grads.shape[0], -1).sum(1).mean()
 
         del t
         del epsilon
@@ -49,7 +46,9 @@ class Trainer(object):
 
     def _init_optimizer(self, lr):
         d_vars, g_vars = self.model.get_weights()
-        
+
+        #self.d_optim = torch.optim.SGD(d_vars, lr)
+        #self.g_optim = torch.optim.SGD(g_vars, lr)
         #self.d_optim = torch.optim.RMSprop(d_vars, lr)
         #self.g_optim = torch.optim.RMSprop(g_vars, lr)
         self.d_optim = optimizers.RMSpropEx(d_vars, lr)
@@ -92,7 +91,7 @@ class Trainer(object):
                 if self.reg == 'gp':
                     d_reg = self.lambd * self._get_gp_reg(img, gen_samples)/m
                     d_reg.backward()
-                
+
                     err_S += np.sqrt(d_reg.cpu().data.numpy())
                     del d_reg
 

@@ -17,8 +17,6 @@ import signal
 utils.flags.DEFINE_string("action", 'train', "action to do [train]")
 utils.flags.DEFINE_integer("epoch", 25, "Epoch to train [25]")
 utils.flags.DEFINE_float("learning_rate", 0.0002, "Learning rate of for adam [0.0002]")
-utils.flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
-utils.flags.DEFINE_integer("train_size", int(1e+6), "The size of train images [np.inf]")
 utils.flags.DEFINE_integer("batch_size", 64, "The number of batch images [64]")
 utils.flags.DEFINE_integer("batch_per_update", 1, "How many batches for one parameters update. [1]")
 utils.flags.DEFINE_integer("image_size", 108, "The size of image to use (will be center cropped) [108]")
@@ -27,12 +25,10 @@ utils.flags.DEFINE_integer("sample_size", 64, "The number of sample images [64]"
 utils.flags.DEFINE_integer("sample_step", 500, "The interval of generating sample. [500]")
 utils.flags.DEFINE_integer("save_step", 500, "The interval of saveing checkpoints. [500]")
 utils.flags.DEFINE_string("dataset", "celeba", "The name of dataset [celebA, mnist, lsun]")
+utils.flags.DEFINE_string("data_folder", "./data", "The path to data folder [./data]")
 utils.flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 utils.flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 utils.flags.DEFINE_string("log_dir", "log", "Directory name to save the logs [log]")
-utils.flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
-utils.flags.DEFINE_boolean("is_crop", True, "True for training, False for testing [False]")
-utils.flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
 utils.flags.DEFINE_integer("z_dim", 100, "Dimensions of generator input [100]")
 FLAGS = utils.flags.FLAGS()
 
@@ -48,7 +44,8 @@ def main(_):
         batch_size = FLAGS.sample_size
 
     #dataset
-    ds = dataset.datasets.from_name(FLAGS.dataset, batch_size = batch_size, output_size=(FLAGS.output_size, FLAGS.output_size))
+    ds = dataset.datasets.from_name(name=FLAGS.dataset, data_folder=FLAGS.data_folder, batch_size=batch_size,
+                                    output_size=(FLAGS.output_size, FLAGS.output_size))
 
     with batch_gen.ThreadedBatch(batch_gen.BatchWithNoise(ds, z_dim = FLAGS.z_dim)) as batch:
         #initialize device
@@ -62,16 +59,15 @@ def main(_):
             print ('CUDA not available')
 
         #model
-        nn_model = models.model.DeepResidualModel(device=device, batch = batch, g_tanh = True, g_act = 'LeakyReLU', d_act = 'LeakyReLU', batch_norm = True)
+        nn_model = models.model.DeepResidualModel(device=device, batch=batch, g_tanh=False, g_act='LeakyReLU',
+                                                  d_act='LeakyReLU')
 
-        trainer = training.Trainer(model = nn_model, batch = batch, loss = gan_loss.js_loss, lr = FLAGS.learning_rate, reg = 'gp', lambd = 10.)
+        trainer = training.Trainer(model=nn_model, batch=batch, loss=gan_loss.js_loss, lr=FLAGS.learning_rate, reg='gp',
+                                   lambd=10.)
         trainer.sub_batches = FLAGS.batch_per_update
 
-        model_dir = "%s_%s_%s" % (FLAGS.dataset, FLAGS.batch_size, FLAGS.output_size)
-        save_dir = os.path.join(FLAGS.checkpoint_dir, model_dir)
-
         # load the latest checkpoints
-        if nn_model.load_checkpoint(save_dir):
+        if nn_model.load_checkpoint(FLAGS.checkpoint_dir):
             print ('[*] checkpoint loaded')
         else:
             print ('[*] checkpoint not found')
@@ -114,10 +110,10 @@ def main(_):
                     start_time = time.time()
 
                     # updates the discriminator
-                    #if iter_counter < 1000:
-                    #    d_iter = 10
+                    #if iter_counter < 25 or iter_counter % 500 == 0:
+                    #    d_iter = 20
                     #else:
-                    #    d_iter = 2
+                    #    d_iter = 5
                     d_iter = 2
 
                     errD, s, errG = trainer.update(d_iter, 1)
@@ -152,11 +148,11 @@ def main(_):
                     if np.mod(iter_counter, FLAGS.save_step) == 0:
                         # save current network parameters
                         print("[*] Saving checkpoints...")
-                        nn_model.save_checkpoint(save_dir)
+                        nn_model.save_checkpoint(FLAGS.checkpoint_dir)
                         print("[*] Saving checkpoints SUCCESS!")
 
             print("[*] Saving checkpoints...")
-            nn_model.save_checkpoint(save_dir)
+            nn_model.save_checkpoint(FLAGS.checkpoint_dir)
             print("[*] Saving checkpoints SUCCESS!")
 
         else:
@@ -164,3 +160,4 @@ def main(_):
 
 if __name__ == '__main__':
     main('')
+
