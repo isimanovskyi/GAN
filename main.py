@@ -2,16 +2,16 @@ import os, time
 import numpy as np
 from random import shuffle
 import torch
+import traceback
+import logger
 
 import utils
 import dataset.datasets
 import batch_gen
-#import optimizers
 
-import models.model
+import models.model_factory
 import gan_loss
 import training
-import signal
 
 
 utils.flags.DEFINE_string("action", 'train', "action to do [train]")
@@ -30,6 +30,7 @@ utils.flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to sav
 utils.flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 utils.flags.DEFINE_string("log_dir", "log", "Directory name to save the logs [log]")
 utils.flags.DEFINE_integer("z_dim", 100, "Dimensions of generator input [100]")
+utils.flags.DEFINE_string("model_name", "Model", "Name of the model [Model]")
 FLAGS = utils.flags.FLAGS()
 
 
@@ -53,14 +54,13 @@ def main(_):
         if is_cuda:
             cur_device = torch.cuda.current_device()
             device = torch.device('cuda:'+str(cur_device))
-            print ('CUDA device: ' + torch.cuda.get_device_name(cur_device))
+            logger.info('CUDA device: ' + torch.cuda.get_device_name(cur_device))
         else:
             device = torch.device('cpu:0')
-            print ('CUDA not available')
+            logger.info('CUDA not available')
 
         #model
-        nn_model = models.model.DeepResidualModel(device=device, batch=batch, g_tanh=False, g_act='LeakyReLU',
-                                                  d_act='LeakyReLU')
+        nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, batch=batch)
 
         trainer = training.Trainer(model=nn_model, batch=batch, loss=gan_loss.js_loss, lr=FLAGS.learning_rate, reg='gp',
                                    lambd=10.)
@@ -68,9 +68,9 @@ def main(_):
 
         # load the latest checkpoints
         if nn_model.load_checkpoint(FLAGS.checkpoint_dir):
-            print ('[*] checkpoint loaded')
+            logger.info('[*] checkpoint loaded')
         else:
-            print ('[*] checkpoint not found')
+            logger.info('[*] checkpoint not found')
 
         if FLAGS.action == 'sample':
             batch_z, batch_images = batch.get_batch()
@@ -80,7 +80,7 @@ def main(_):
 
             n_file = np.random.randint(10000)
             utils.save_images(img[:n*n], [n, n], './{}/sample_{:06d}.png'.format(FLAGS.sample_dir, n_file))
-            print("Images saved")
+            logger.info("Images saved")
 
         elif FLAGS.action == 'train':
             sample_seed, sample_images = batch.get_samples(FLAGS.sample_size)
@@ -123,7 +123,7 @@ def main(_):
                     iter_time = end_time - start_time
                     total_time += iter_time
 
-                    print("[%2d/%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, s: %.4f, g_loss: %.8f" % (epoch, FLAGS.epoch, b+1, batches_per_epoch, iter_time, errD, s, errG))
+                    logger.info("[%2d/%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, s: %.4f, g_loss: %.8f" % (epoch, FLAGS.epoch, b+1, batches_per_epoch, iter_time, errD, s, errG))
 
                     time_array.append(total_time)
                     d_loss_array.append(errD)
@@ -137,7 +137,7 @@ def main(_):
 
                         n = int(np.sqrt(FLAGS.sample_size))
                         utils.save_images(img, [n, n], './{}/train_{:02d}_{:04d}.png'.format(FLAGS.sample_dir, epoch, b+1))
-                        print("[Sample] d_loss: %.8f, g_loss: %.8f" % (errD, errG))
+                        logger.info("[Sample] d_loss: %.8f, g_loss: %.8f" % (errD, errG))
 
                         #m_score = evaluation.evaluation.evaluate(sess, trainer, batch, 'is')
                         #score_array.append(m_score)
@@ -147,17 +147,19 @@ def main(_):
 
                     if np.mod(iter_counter, FLAGS.save_step) == 0:
                         # save current network parameters
-                        print("[*] Saving checkpoints...")
+                        logger.info("[*] Saving checkpoints...")
                         nn_model.save_checkpoint(FLAGS.checkpoint_dir)
-                        print("[*] Saving checkpoints SUCCESS!")
+                        logger.info("[*] Saving checkpoints SUCCESS!")
 
-            print("[*] Saving checkpoints...")
+            logger.info("[*] Saving checkpoints...")
             nn_model.save_checkpoint(FLAGS.checkpoint_dir)
-            print("[*] Saving checkpoints SUCCESS!")
+            logger.info("[*] Saving checkpoints SUCCESS!")
 
         else:
             raise ValueError('unknown action')
 
 if __name__ == '__main__':
-    main('')
-
+    try:
+        main('')
+    except Exception as e:
+        logger.error(traceback.format_exc())

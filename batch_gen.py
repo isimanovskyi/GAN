@@ -31,7 +31,6 @@ class ThreadedBatch(object):
 
     def __exit__(self, type, value, traceback):
         self.shutdown()
-        return True
 
     def thread_proc(self):
         while not self.stop_event.is_set():

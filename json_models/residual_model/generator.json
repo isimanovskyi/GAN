@@ -1,0 +1,106 @@
+{
+    "name": "generator",
+    "activation": {
+        "type": "LeakyReLU",
+        "args": { "negative_slope": 0.2 }
+    },
+    "use_batch_norm": true,
+
+    "layers": [
+        {
+            "type": "Dense",
+            "args": { "features": 8192 },
+            "activation": { "type": "Parent" },
+            "use_batch_norm": false
+        },
+        {
+            "type": "Reshape",
+            "args": { "shape": [ 512, 4, 4 ] }
+        },
+        {
+            "type": "Conv2DTranspose",
+            "args": {
+                "channels": 512,
+                "kernel_size": [ 3, 3 ],
+                "strides": [ 2, 2 ],
+                "padding": "same",
+                "output_padding": [ 1, 1 ]
+            },
+            "activation": { "type": "Parent" }
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 512,
+                "kernel_size": [ 5, 5 ],
+                "activation": { "type": "Parent" }
+            }
+        },
+        {
+            "type": "Conv2DTranspose",
+            "args": {
+                "channels": 256,
+                "kernel_size": [ 5, 5 ],
+                "strides": [ 2, 2 ],
+                "padding": "same",
+                "output_padding": [ 1, 1 ]
+            },
+            "activation": { "type": "Parent" }
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 256,
+                "kernel_size": [ 5, 5 ],
+                "activation": { "type": "Parent" }
+            }
+        },
+        {
+            "type": "Conv2DTranspose",
+            "args": {
+                "channels": 128,
+                "kernel_size": [ 5, 5 ],
+                "strides": [ 2, 2 ],
+                "padding": "same",
+                "output_padding": [ 1, 1 ]
+            },
+            "activation": { "type": "Parent" }
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 128,
+                "kernel_size": [ 5, 5 ],
+                "activation": { "type": "Parent" }
+            }
+        },
+        {
+            "type": "Conv2DTranspose",
+            "args": {
+                "channels": 64,
+                "kernel_size": [ 5, 5 ],
+                "strides": [ 2, 2 ],
+                "padding": "same",
+                "output_padding": [ 1, 1 ]
+            },
+            "activation": { "type": "Parent" }
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 16,
+                "kernel_size": [ 5, 5 ],
+                "activation": { "type": "Parent" }
+            }
+        },
+        {
+            "type": "Conv2D",
+            "args": {
+                "channels": 3,
+                "kernel_size": [ 5, 5 ],
+                "strides": [ 1, 1 ],
+                "padding": "same"
+            }
+        }
+    ]
+}

@@ -1,0 +1,81 @@
+{
+    "name": "discriminator",
+    "activation": {
+        "type": "LeakyReLU",
+        "args": { "negative_slope": 0.2 }
+    },
+
+    "layers": [
+        {
+            "type": "Conv2D",
+            "args": {
+                "channels": 64,
+                "kernel_size": [ 5, 5 ],
+                "strides": [ 2, 2 ],
+                "padding": "same"
+            },
+            "activation": { "type": "Parent" }
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 64,
+                "kernel_size": [ 5, 5 ],
+                "activation": { "type": "Parent" }
+            }
+        },
+        {
+            "type": "Conv2D",
+            "args": {
+                "channels": 128,
+                "kernel_size": [ 5, 5 ],
+                "strides": [ 2, 2 ],
+                "padding": "same"
+            },
+            "activation": { "type": "Parent" }
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 128,
+                "kernel_size": [ 5, 5 ],
+                "activation": { "type": "Parent" }
+            }
+        },
+        {
+            "type": "Conv2D",
+            "args": {
+                "channels": 256,
+                "kernel_size": [ 5, 5 ],
+                "strides": [ 2, 2 ],
+                "padding": "same"
+            },
+            "activation": { "type": "Parent" }
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 256,
+                "kernel_size": [ 5, 5 ],
+                "activation": { "type": "Parent" }
+            }
+        },
+        {
+            "type": "Conv2D",
+            "args": {
+                "channels": 512,
+                "kernel_size": [ 5, 5 ],
+                "strides": [ 2, 2 ],
+                "padding": "same"
+            },
+            "activation": { "type": "Parent" }
+        },
+        {
+            "type": "Flatten"
+        },
+        {
+            "type": "Dense",
+            "args": { "features": 1 }
+        }
+    ]
+}

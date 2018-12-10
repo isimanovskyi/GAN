@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import os
 
+import sys, inspect
+
 def get_axis_same_padding(kernel_size):
     if kernel_size % 2 == 0:
         return kernel_size // 2
@@ -17,6 +19,9 @@ class ActivationBlock(torch.nn.Module):
     def __init__(self, act, **kwargs):
         super(ActivationBlock, self).__init__(**kwargs)
 
+        if act is None:
+            raise ValueError('Activation cannot be None')
+
         if isinstance(act, str):
             if act == 'relu':
                 self.act = torch.nn.Relu()
@@ -26,12 +31,17 @@ class ActivationBlock(torch.nn.Module):
 
             elif act == 'tanh':
                 self.act = torch.nn.Tanh()
-            # elif act == 'alt':
-            #    def f(x):
-            #        return tf.where(x < -1., 0.2*x-0.8, tf.where(x > 1., 0.2*x+0.8, x))
-            #    return tf.keras.layers.Activation(f)
             else:
                 raise ValueError('Unknown activation')
+
+        if isinstance(act, dict):
+            for name, cs in inspect.getmembers(sys.modules['torch.nn'], inspect.isclass):
+                if name == act['type']:
+                    self.act = cs(**act['args'])
+                    return
+                    
+            raise ValueError('Unknown object')
+
         else:
             self.act = act
 
@@ -39,28 +49,42 @@ class ActivationBlock(torch.nn.Module):
         return self.act(x)
 
 class ResidualBlock(torch.nn.Module):
-    def __init__(self, in_filters, out_filters, kernel_size, activation, **kwargs):
+    def __init__(self, in_filters, out_filters, kernel_size, activation, use_batch_norm, **kwargs):
         super(ResidualBlock, self).__init__(**kwargs)
 
+        self.use_batch_norm = use_batch_norm
         self.activation = ActivationBlock(activation)
 
         self.conj_conv = None
         if in_filters != out_filters:
             self.conj_conv = torch.nn.Conv2d(in_filters, out_filters, kernel_size=kernel_size, stride=(1, 1), padding=get_same_padding(kernel_size))
+            if use_batch_norm:
+                self.conj_bn = torch.nn.BatchNorm2d(out_filters)
 
         self.conv1 = torch.nn.Conv2d(in_filters, out_filters, kernel_size=kernel_size, stride=(1, 1), padding=get_same_padding(kernel_size))
+        if use_batch_norm:
+            self.conv1_bn = torch.nn.BatchNorm2d(out_filters)
+
         self.conv2 = torch.nn.Conv2d(out_filters, out_filters, kernel_size=kernel_size, stride=(1, 1), padding=get_same_padding(kernel_size))
+        if use_batch_norm:
+            self.conv2_bn = torch.nn.BatchNorm2d(out_filters)
 
     def forward(self, x):
         if self.conj_conv:
             z = self.conj_conv(x)
+            if self.use_batch_norm:
+                z = self.conj_bn(z)
         else:
             z = x
 
         y = self.conv1(x)
+        if self.use_batch_norm:
+            y = self.conv1_bn(y)
         y = self.activation(y)
 
         y = self.conv2(y)
+        if self.use_batch_norm:
+            y = self.conv2_bn(y)
 
         x = y + z
         x = self.activation(x)
@@ -69,10 +93,10 @@ class ResidualBlock(torch.nn.Module):
 class ReshapeBlock(torch.nn.Module):
     def __init__(self, shape, **kwargs):
         super(ReshapeBlock, self).__init__(**kwargs)
-        self.shape = shape
+        self.shape = tuple(shape)
 
     def forward(self, x):
-        return x.reshape((-1,) + self.shape)
+        return x.reshape((x.size(0),) + self.shape)
 
 class FlattenBlock(torch.nn.Module):
     def forward(self, x):
@@ -98,6 +122,14 @@ class SequentialContainer(object):
         if len(self.input_shape) != 3:
             raise ValueError('Input is not Convolutional')
 
+        if type(padding) is str:
+            if padding == 'same':
+                padding = get_same_padding(kernel_size)
+            elif padding == 'valid':
+                padding = (0,0)
+            else:
+                ValueError('Unknown padding type')
+
         #add layer
         self.layers.append(torch.nn.Conv2d(self.input_shape[0], channels, kernel_size, strides, padding, dilation, groups, bias))
         
@@ -119,6 +151,14 @@ class SequentialContainer(object):
 
         if len(self.input_shape) != 3:
             raise ValueError('Input is not Convolutional')
+
+        if type(padding) is str:
+            if padding == 'same':
+                padding = get_same_padding(kernel_size)
+            elif padding == 'valid':
+                padding = (0,0)
+            else:
+                ValueError('Unknown padding type')
 
         #add layer
         self.layers.append(torch.nn.ConvTranspose2d(self.input_shape[0], channels, kernel_size, strides, padding, output_padding, groups, bias, dilation))
@@ -154,15 +194,23 @@ class SequentialContainer(object):
         self.layers.append(FlattenBlock())
         self.input_shape = (np.prod(self.input_shape),)
 
-    def add_Activation(self, act):
-        self.layers.append(ActivationBlock(act))
+    def add_Activation(self, activation):
+        self.layers.append(ActivationBlock(activation))
 
-    def add_Residual(self, filters, kernel_size, activation):
+    def add_Residual(self, filters, kernel_size, activation, use_batch_norm = False):
         if len(self.input_shape) != 3:
             raise ValueError('Input is not Convolutional')
 
-        self.layers.append(ResidualBlock(self.input_shape[0],filters,kernel_size,activation))
+        self.layers.append(ResidualBlock(self.input_shape[0],filters,kernel_size,activation, use_batch_norm))
         self.input_shape = (filters, self.input_shape[1], self.input_shape[2])
+
+    def add_BatchNorm(self):
+        if len(self.input_shape) == 1:
+            self.layers.append(torch.nn.BatchNorm1d(self.input_shape[0]))
+        elif len(self.input_shape) == 3:
+            self.layers.append(torch.nn.BatchNorm2d(self.input_shape[0]))
+        else:
+            raise ValueError('Unsupported shape')
 
     def get(self):
         return SequentialModel(*self.layers)
