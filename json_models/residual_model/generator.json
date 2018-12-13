@@ -31,7 +31,7 @@
         {
             "type": "Residual",
             "args": {
-                "filters": 512,
+                "filters": 256,
                 "kernel_size": [ 5, 5 ],
                 "activation": { "type": "Parent" }
             }
@@ -100,7 +100,8 @@
                 "kernel_size": [ 5, 5 ],
                 "strides": [ 1, 1 ],
                 "padding": "same"
-            }
+            },
+            "use_batch_norm": false
         }
     ]
 }
