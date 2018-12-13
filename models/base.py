@@ -15,6 +15,17 @@ def get_same_padding(kernel_size):
     p1 = get_axis_same_padding(kernel_size[1])
     return (p0,p1)
 
+def convert_padding(padding, kernel_size):
+    if type(padding) is str or type(padding) is unicode:
+        if padding == 'same':
+            return get_same_padding(kernel_size)
+        elif padding == 'valid':
+            return (0, 0)
+        else:
+            ValueError('Unknown padding type')
+
+    return tuple(padding)
+
 class ActivationBlock(torch.nn.Module):
     def __init__(self, act, **kwargs):
         super(ActivationBlock, self).__init__(**kwargs)
@@ -122,13 +133,7 @@ class SequentialContainer(object):
         if len(self.input_shape) != 3:
             raise ValueError('Input is not Convolutional')
 
-        if type(padding) is str:
-            if padding == 'same':
-                padding = get_same_padding(kernel_size)
-            elif padding == 'valid':
-                padding = (0,0)
-            else:
-                ValueError('Unknown padding type')
+        padding = convert_padding(padding, kernel_size)
 
         #add layer
         self.layers.append(torch.nn.Conv2d(self.input_shape[0], channels, kernel_size, strides, padding, dilation, groups, bias))
@@ -152,13 +157,7 @@ class SequentialContainer(object):
         if len(self.input_shape) != 3:
             raise ValueError('Input is not Convolutional')
 
-        if type(padding) is str:
-            if padding == 'same':
-                padding = get_same_padding(kernel_size)
-            elif padding == 'valid':
-                padding = (0,0)
-            else:
-                ValueError('Unknown padding type')
+        padding = convert_padding(padding, kernel_size)
 
         #add layer
         self.layers.append(torch.nn.ConvTranspose2d(self.input_shape[0], channels, kernel_size, strides, padding, output_padding, groups, bias, dilation))

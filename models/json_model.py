@@ -15,16 +15,7 @@ class Net(object):
 
         #fill model ctx
         self.name = data['name']
-
-        if 'activation' in data.keys():
-            self.activation = data['activation']
-        else:
-            self.activation = None
-
-        if 'use_batch_norm' in data.keys():
-            self.use_batch_norm = data['use_batch_norm']
-        else:
-            self.use_batch_norm = False
+        self.variables = data['variables']
 
         #create model
         net = models.base.SequentialContainer(in_shape)
@@ -42,33 +33,32 @@ class Net(object):
         else:
             args = {}
 
-        args = self.arg_hook(layer, args)
+        args = self.arg_hook(args)
 
         getattr(net, method_name)(**args)
 
         if 'use_batch_norm' in layer.keys():
-            if layer['use_batch_norm']:
+            use_bn = self.convert_value(layer['use_batch_norm'])
+            if use_bn:
                 net.add_BatchNorm()
-        elif self.use_batch_norm and layer['type'] != 'Residual':
-            net.add_BatchNorm()
 
         if 'activation' in layer.keys():
-            activation = layer['activation']
-            if type(activation) is dict and activation['type'] == 'Parent':
-                net.add_Activation(self.activation)
-            else:
-                net.add_Activation(activation)
+            activation = self.convert_value(layer['activation'])
+            net.add_Activation(activation)
 
-    def arg_hook(self, layer, args):
-        if 'activation' in args.keys():
-            activation = args['activation']
-            if type(activation) is dict and activation['type'] == 'Parent':
-                args['activation'] = self.activation
+    def convert_value(self, val):
+        if type(val) is not str and type(val) is not unicode:
+            return val
 
-        if layer['type'] == 'Residual':
-            if 'use_batch_norm' not in args.keys():
-                args['use_batch_norm'] = self.use_batch_norm
+        if not val.startswith('var/'):
+            return val
 
+        var_name = val.split('var/', 1)[1]
+        return self.variables[var_name]
+
+    def arg_hook(self, args):
+        for key, value in args.iteritems():
+            args[key] = self.convert_value(value)
         return args
 
 class JSONModel(models.base.ModelBase):

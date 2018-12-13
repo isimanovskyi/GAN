@@ -1,12 +1,13 @@
 import numpy as np
-import multiprocessing
 import threading
 import time
 
 class ThreadedBatch(object):
     def __init__(self, batch, queue_size = 10):
         self.batch = batch
-        self.queue = multiprocessing.Queue(queue_size)
+        self.lock = threading.Lock()
+        self.queue = list()
+        self.queue_size = queue_size
 
         #launch thread
         self.stop_event = threading.Event()
@@ -38,11 +39,12 @@ class ThreadedBatch(object):
 
     def put_to_queue(self, batch):
         while not self.stop_event.is_set():
-            try:
-                self.queue.put(batch, False)
-                return
-            except multiprocessing.queues.Full as e:
-                time.sleep(0.01)
+            with self.lock:
+                if len(self.queue) < self.queue_size:
+                    self.queue.append(batch)
+                    return
+
+            time.sleep(0.01)
 
     def get_size(self):
         return self.batch.get_size()
@@ -57,7 +59,14 @@ class ThreadedBatch(object):
         raise NotImplementedError('Not implemented')
 
     def get_batch(self):
-        return self.queue.get()
+        while True:
+            with self.lock:
+                if len(self.queue) > 0:
+                    batch = self.queue[0]
+                    del self.queue[0]
+                    return batch
+
+            time.sleep(0.01)
 
     def get_z_shape(self):
         return self.batch.get_z_shape()

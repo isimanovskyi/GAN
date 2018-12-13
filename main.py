@@ -1,6 +1,6 @@
 import os, time
 import numpy as np
-from random import shuffle
+
 import torch
 import traceback
 import logger
@@ -158,8 +158,10 @@ def main(_):
         else:
             raise ValueError('unknown action')
 
+import threading
 if __name__ == '__main__':
     try:
         main('')
     except Exception as e:
         logger.error(traceback.format_exc())
+

@@ -1,8 +1,14 @@
 {
     "name": "discriminator",
-    "activation": {
-        "type": "LeakyReLU",
-        "args": { "negative_slope": 0.2 }
+    "variables": {
+            "activation": {
+                "type": "LeakyReLU",
+                "args": {
+                    "negative_slope": 0.2
+                }
+            },
+            "kernel_size": [5,5],
+            "res_kernel_size": [3,3]
     },
 
     "layers": [
@@ -10,136 +16,136 @@
             "type": "Conv2D",
             "args": {
                 "channels": 64,
-                "kernel_size": [ 5, 5 ],
+                "kernel_size": "var/kernel_size",
                 "strides": [ 2, 2 ],
                 "padding": "same"
             },
-            "activation": { "type": "Parent" }
+            "activation": "var/activation"
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 64,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 64,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 64,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Conv2D",
             "args": {
                 "channels": 128,
-                "kernel_size": [ 5, 5 ],
+                "kernel_size": "var/kernel_size",
                 "strides": [ 2, 2 ],
                 "padding": "same"
             },
-            "activation": { "type": "Parent" }
+            "activation": "var/activation"
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 128,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 128,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 128,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Conv2D",
             "args": {
                 "channels": 256,
-                "kernel_size": [ 5, 5 ],
+                "kernel_size": "var/kernel_size",
                 "strides": [ 2, 2 ],
                 "padding": "same"
             },
-            "activation": { "type": "Parent" }
+            "activation": "var/activation"
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 256,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 256,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 256,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Conv2D",
             "args": {
                 "channels": 512,
-                "kernel_size": [ 5, 5 ],
+                "kernel_size": "var/kernel_size",
                 "strides": [ 2, 2 ],
                 "padding": "same"
             },
-            "activation": { "type": "Parent" }
+            "activation": "var/activation"
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 512,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 512,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 512,
-                "kernel_size": [ 5, 5 ],
-                "activation": { "type": "Parent" }
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
             }
         },
         {
