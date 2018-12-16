@@ -3,6 +3,7 @@ import torch
 import models.base
 import json
 import logger
+import utils
 
 class Net(object):
     def __init__(self, file):
@@ -47,7 +48,7 @@ class Net(object):
             net.add_Activation(activation)
 
     def convert_value(self, val):
-        if type(val) is not str and type(val) is not unicode:
+        if not utils.is_str(val):
             return val
 
         if not val.startswith('var/'):
@@ -57,7 +58,7 @@ class Net(object):
         return self.variables[var_name]
 
     def arg_hook(self, args):
-        for key, value in args.iteritems():
+        for key, value in utils.get_items(args):
             args[key] = self.convert_value(value)
         return args
 

@@ -7,7 +7,7 @@
                     "negative_slope": 0.2
                 }
             },
-            "use_batch_norm": true,
+            "use_batch_norm": false,
             "kernel_size": [5,5],
             "res_kernel_size": [3,3]
     },

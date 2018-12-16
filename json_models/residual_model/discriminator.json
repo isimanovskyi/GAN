@@ -8,7 +8,8 @@
                 }
             },
             "kernel_size": [5,5],
-            "res_kernel_size": [3,3]
+            "res_kernel_size": [ 3, 3 ],
+            "use_batch_norm": false
     },
 
     "layers": [
@@ -20,7 +21,8 @@
                 "strides": [ 2, 2 ],
                 "padding": "same"
             },
-            "activation": "var/activation"
+            "activation": "var/activation",
+            "use_batch_norm": "var/use_batch_norm"
         },
         {
             "type": "Residual",
@@ -28,7 +30,8 @@
                 "filters": 64,
                 "kernel_size": "var/res_kernel_size",
                 "activation": "var/activation"
-            }
+            },
+            "use_batch_norm": "var/use_batch_norm"
         },
         {
             "type": "Conv2D",
@@ -38,14 +41,16 @@
                 "strides": [ 2, 2 ],
                 "padding": "same"
             },
-            "activation": "var/activation"
+            "activation": "var/activation",
+            "use_batch_norm": "var/use_batch_norm"
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 128,
                 "kernel_size": "var/res_kernel_size",
-                "activation": "var/activation"
+                "activation": "var/activation",
+                "use_batch_norm": "var/use_batch_norm"
             }
         },
         {
@@ -56,14 +61,16 @@
                 "strides": [ 2, 2 ],
                 "padding": "same"
             },
-            "activation": "var/activation"
+            "activation": "var/activation",
+            "use_batch_norm": "var/use_batch_norm"
         },
         {
             "type": "Residual",
             "args": {
                 "filters": 256,
                 "kernel_size": "var/res_kernel_size",
-                "activation": "var/activation"
+                "activation": "var/activation",
+                "use_batch_norm": "var/use_batch_norm"
             }
         },
         {
@@ -74,7 +81,8 @@
                 "strides": [ 2, 2 ],
                 "padding": "same"
             },
-            "activation": "var/activation"
+            "activation": "var/activation",
+            "use_batch_norm": "var/use_batch_norm"
         },
         {
             "type": "Flatten"

@@ -268,13 +268,13 @@ class MLPModel(models.base.ModelBase):
 
         net.add_Reshape((3*image_shape[1]*image_shape[2],))
 
+        net.add_Dense(2048)
+        net.add_Activation(self.d_act)
+
+        net.add_Dense(2048)
+        net.add_Activation(self.d_act)
+
         net.add_Dense(1024)
-        net.add_Activation(self.d_act)
-
-        net.add_Dense(512)
-        net.add_Activation(self.d_act)
-
-        net.add_Dense(256)
         net.add_Activation(self.d_act)
 
         net.add_Dense(128)
