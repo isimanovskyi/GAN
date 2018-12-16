@@ -83,7 +83,13 @@ def main(_):
             logger.info("Images saved")
 
         elif FLAGS.action == 'train':
-            sample_seed, sample_images = batch.get_samples(FLAGS.sample_size)
+            sample_path = os.path.join(FLAGS.checkpoint_dir, 'sample.npz')
+            if os.path.exists(sample_path):
+                sample_seed = np.load(sample_path)
+                sample_seed = sample_seed['z']
+            else:
+                sample_seed, sample_images = batch.get_samples(FLAGS.sample_size)
+                np.savez(sample_path, z=sample_seed)
 
             ##========================= TRAIN MODELS ================================##
             iter_counter = 0
@@ -114,7 +120,7 @@ def main(_):
                     #    d_iter = 20
                     #else:
                     #    d_iter = 5
-                    d_iter = 2
+                    d_iter = 1
 
                     errD, s, errG = trainer.update(d_iter, 1)
 

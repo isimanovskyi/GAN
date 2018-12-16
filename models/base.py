@@ -102,12 +102,15 @@ class ResidualBlock(torch.nn.Module):
         return x
 
 class ReshapeBlock(torch.nn.Module):
-    def __init__(self, shape, **kwargs):
+    def __init__(self, shape, keep_batch=True,**kwargs):
         super(ReshapeBlock, self).__init__(**kwargs)
         self.shape = tuple(shape)
+        self.keep_batch = keep_batch
 
     def forward(self, x):
-        return x.reshape((x.size(0),) + self.shape)
+        if self.keep_batch:
+            return x.reshape((x.size(0),) + self.shape)
+        return x.reshape(self.shape)
 
 class FlattenBlock(torch.nn.Module):
     def forward(self, x):
@@ -177,7 +180,7 @@ class SequentialContainer(object):
 
     def add_Dense(self, features):
         if len(self.input_shape) != 1:
-            raise ValueError('Previous layer is not convolutional')
+            raise ValueError('Input is not flat')
 
         #add layer
         self.layers.append(torch.nn.Linear(self.input_shape[0], features))
@@ -185,9 +188,12 @@ class SequentialContainer(object):
         #output shape
         self.input_shape = (features,)
 
-    def add_Reshape(self, shape):
-        self.layers.append(ReshapeBlock(shape))
-        self.input_shape = shape
+    def add_Reshape(self, shape, keep_batch = True):
+        self.layers.append(ReshapeBlock(shape, keep_batch))
+        if keep_batch:
+            self.input_shape = shape
+        else:
+            self.input_shape = tuple(shape[1:])
 
     def add_Flatten(self):
         self.layers.append(FlattenBlock())
