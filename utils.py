@@ -66,3 +66,23 @@ def save_images(images, size, image_path):
         raise AssertionError("number of images %s should be equal or less than size[0] * size[1] %s" % (len(images), size[0] * size[1]))
 
     return imsave(images, size, image_path)
+
+def is_str(val):
+    t = type(val)
+    
+    if t is str:
+        return True
+    
+    try:
+        if t is unicode:
+            return True
+    except NameError:
+        pass
+
+    return False
+
+def get_items(d):
+    if hasattr(d, 'iteritems'):
+        return d.iteritems()
+
+    return d.items()

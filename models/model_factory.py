@@ -9,6 +9,8 @@ def create_model(name, **kwargs):
         return models.model.Model(**kwargs)
     elif name == 'DeepResidualModel':
         return models.model.DeepResidualModel(**kwargs)
+    elif name == 'MLPModel':
+        return models.model.MLPModel(**kwargs)
     elif name.startswith('json_'):
         model_name = name.split('json_', 1)[1]
         d_file = os.path.join('json_models', model_name, 'discriminator.json')

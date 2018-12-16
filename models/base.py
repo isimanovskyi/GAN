@@ -3,6 +3,7 @@ import torch
 import os
 
 import sys, inspect
+import utils
 
 def get_axis_same_padding(kernel_size):
     if kernel_size % 2 == 0:
@@ -16,7 +17,7 @@ def get_same_padding(kernel_size):
     return (p0,p1)
 
 def convert_padding(padding, kernel_size):
-    if type(padding) is str or type(padding) is unicode:
+    if utils.is_str(padding):
         if padding == 'same':
             return get_same_padding(kernel_size)
         elif padding == 'valid':
@@ -248,9 +249,9 @@ class ModelBase(object):
         self.g_model.to(device = device)
 
     def init_weights(self, m):
-        if type(m) == torch.nn.Linear \
-            or type(m) == torch.nn.Conv2d \
-            or type(m) == torch.nn.ConvTranspose2d:
+        if isinstance(m, torch.nn.Linear) \
+            or isinstance(m, torch.nn.Conv2d) \
+            or isinstance(m, torch.nn.ConvTranspose2d):
             torch.nn.init.normal_(m.weight, mean=0., std=0.01)
             torch.nn.init.constant_(m.bias, 0.)
 
