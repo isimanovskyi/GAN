@@ -4,6 +4,10 @@ import time as _time
 import threading
 
 class Logger(object):
+    def event(self, msg):
+        with open('.\log\event.txt', 'a') as f:
+            f.write(msg + '\n')
+
     def log(self, level, msg, *args, **kwargs):
         print (msg)
 
@@ -42,6 +46,9 @@ def _get_logger():
 
     finally:
         _logger_lock.release()
+
+def event(msg):
+    _get_logger().event(msg)
     
 
 def log(level, msg, *args, **kwargs):

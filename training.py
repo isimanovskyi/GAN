@@ -26,7 +26,7 @@ class Trainer(object):
         reg = grads.pow(2).view(batch_size, -1).sum(1).mean()
         return reg
 
-    def _get_gp_reg(self, img, gen_samples):
+    def _get_gp_reg(self, img, gen_samples, norm = 'l2'):
         epsilon = torch.rand(img.shape[0], device=self.model.device).reshape((img.shape[0],1,1,1))
 
         t = img + epsilon * (gen_samples - img)
@@ -35,7 +35,13 @@ class Trainer(object):
 
         d = self.model.d_model(t)
         grads = torch.autograd.grad(d.sum(), t, retain_graph=True, create_graph=True, only_inputs=True)[0]
-        reg = grads.pow(2).view(grads.shape[0], -1).sum(1).mean()
+
+        if norm == 'l2':
+            reg = grads.view(grads.shape[0], -1).pow(2).sum(1).mean()
+        elif norm == 'l1':
+            reg = grads.view(grads.shape[0], -1).abs().sum(1).pow(2).mean()
+        else:
+            raise ValueError('Unknown norm')
 
         del t
         del epsilon
@@ -52,7 +58,7 @@ class Trainer(object):
         #self.d_optim = torch.optim.RMSprop(d_vars, lr)
         #self.g_optim = torch.optim.RMSprop(g_vars, lr)
         self.d_optim = optimizers.RMSpropEx(d_vars, lr)
-        self.g_optim = optimizers.RMSpropEx(g_vars, lr)
+        self.g_optim = optimizers.RMSpropEx(g_vars, lr/2.)
 
     def update_d(self, n_steps):
         self.model.d_model.requires_grad(True)
@@ -89,7 +95,7 @@ class Trainer(object):
                 err_D += (d_loss).cpu().data.numpy()
 
                 if self.reg == 'gp':
-                    d_reg = self.lambd * self._get_gp_reg(img, gen_samples)/m
+                    d_reg = float(self.lambd) * self._get_gp_reg(img, gen_samples)/m
                     d_reg.backward()
 
                     err_S += np.sqrt(d_reg.cpu().data.numpy())
@@ -115,7 +121,7 @@ class Trainer(object):
             m = float(self.sub_batches)
             for i in range(self.sub_batches):
                 #print ('update_g')
-                batch_z, batch_images = self.batch.get_batch()
+                batch_z = self.batch.get_z()
                 z = torch.tensor(batch_z, device = self.model.device)
             
                 gen_samples = self.model.g_model(z)

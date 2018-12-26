@@ -1,8 +1,8 @@
 import numpy as np
 import torch
 import os
-
 import sys, inspect
+import functools
 import utils
 
 def get_axis_same_padding(kernel_size):
@@ -241,18 +241,18 @@ class ModelBase(object):
             self.d_act = torch.nn.LeakyReLU(0.2)
 
         self.d_model = self._get_discriminator(image_shape = batch.get_image_shape())
-        self.d_model.apply(self.init_weights)
+        self.d_model.apply(functools.partial(self.init_weights, sigma=0.01))
         self.d_model.to(device = device)
 
         self.g_model = self._get_generator(z_shape = batch.get_z_shape(), image_shape = batch.get_image_shape())
-        self.g_model.apply(self.init_weights)
+        self.g_model.apply(functools.partial(self.init_weights, sigma=0.01))
         self.g_model.to(device = device)
 
-    def init_weights(self, m):
+    def init_weights(self, m, sigma):
         if isinstance(m, torch.nn.Linear) \
             or isinstance(m, torch.nn.Conv2d) \
             or isinstance(m, torch.nn.ConvTranspose2d):
-            torch.nn.init.normal_(m.weight, mean=0., std=0.01)
+            torch.nn.init.normal_(m.weight, mean=0., std=sigma)
             torch.nn.init.constant_(m.bias, 0.)
 
     def get_weights(self):

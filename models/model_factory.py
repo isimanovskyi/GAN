@@ -6,7 +6,7 @@ def create_model(name, **kwargs):
     if name == 'Model':
          return models.model.Model(**kwargs)
     elif name == 'ResidualModel':
-        return models.model.Model(**kwargs)
+        return models.model.ResidualModel(**kwargs)
     elif name == 'DeepResidualModel':
         return models.model.DeepResidualModel(**kwargs)
     elif name == 'MLPModel':

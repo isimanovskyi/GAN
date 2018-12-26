@@ -12,6 +12,7 @@ import batch_gen
 import models.model_factory
 import gan_loss
 import training
+import lambda_scheduler
 
 
 utils.flags.DEFINE_string("action", 'train', "action to do [train]")
@@ -32,7 +33,6 @@ utils.flags.DEFINE_string("log_dir", "log", "Directory name to save the logs [lo
 utils.flags.DEFINE_integer("z_dim", 100, "Dimensions of generator input [100]")
 utils.flags.DEFINE_string("model_name", "Model", "Name of the model [Model]")
 FLAGS = utils.flags.FLAGS()
-
 
 
 def main(_):
@@ -62,8 +62,10 @@ def main(_):
         #model
         nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, batch=batch)
 
+        #lambd = lambda_scheduler.Constant(0.1)
+        lambd = lambda_scheduler.ThresholdAnnealing(100.)
         trainer = training.Trainer(model=nn_model, batch=batch, loss=gan_loss.js_loss, lr=FLAGS.learning_rate, reg='gp',
-                                   lambd=10.)
+                                   lambd=lambd)
         trainer.sub_batches = FLAGS.batch_per_update
 
         # load the latest checkpoints
@@ -83,13 +85,32 @@ def main(_):
             logger.info("Images saved")
 
         elif FLAGS.action == 'train':
-            sample_path = os.path.join(FLAGS.checkpoint_dir, 'sample.npz')
-            if os.path.exists(sample_path):
-                sample_seed = np.load(sample_path)
-                sample_seed = sample_seed['z']
+            ##========================= LOAD CONTEXT ================================##
+            context_path = os.path.join(FLAGS.checkpoint_dir, 'context.npz')
+            if os.path.exists(context_path):
+                try:
+                    context = np.load(context_path)
+                    context = dict(context)
+                except Exception as e:
+                    context = {}
+                    logger.error('Cannot read context file: ' + str(e))
+            else:
+                context = {}
+
+            if 'z' in context.keys():
+                sample_seed = context['z']
+                logger.info('loaded sample seed')
             else:
                 sample_seed, sample_images = batch.get_samples(FLAGS.sample_size)
-                np.savez(sample_path, z=sample_seed)
+                context['z'] = sample_seed
+
+            if 'lambd' in context.keys():
+                lambd.set(float(context['lambd']))
+                logger.info('loaded lambda: %4.4f'%(lambd.get()))
+            else:
+                context['lambd'] = lambd.get()
+
+            np.savez(context_path, **context)
 
             ##========================= TRAIN MODELS ================================##
             iter_counter = 0
@@ -120,10 +141,11 @@ def main(_):
                     #    d_iter = 20
                     #else:
                     #    d_iter = 5
-                    d_iter = 1
+                    d_iter = 2
 
                     errD, s, errG = trainer.update(d_iter, 1)
-
+                    lambd.update(errD)
+                    
                     end_time = time.time()
 
                     iter_time = end_time - start_time
@@ -152,15 +174,18 @@ def main(_):
                         np.savez(os.path.join(FLAGS.log_dir, 'log.npz'), loss = d_loss_array, time = time_array)
 
                     if np.mod(iter_counter, FLAGS.save_step) == 0:
+                        context['lambd'] = lambd.get()
+
                         # save current network parameters
                         logger.info("[*] Saving checkpoints...")
+                        np.savez(context_path, **context)
                         nn_model.save_checkpoint(FLAGS.checkpoint_dir)
                         logger.info("[*] Saving checkpoints SUCCESS!")
 
             logger.info("[*] Saving checkpoints...")
+            np.savez(context_path, **context)
             nn_model.save_checkpoint(FLAGS.checkpoint_dir)
             logger.info("[*] Saving checkpoints SUCCESS!")
-
         else:
             raise ValueError('unknown action')
 
