@@ -63,7 +63,7 @@ def main(_):
         nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, batch=batch)
 
         #lambd = lambda_scheduler.Constant(0.1)
-        lambd = lambda_scheduler.ThresholdAnnealing(100.)
+        lambd = lambda_scheduler.ThresholdAnnealing(1000.)
         trainer = training.Trainer(model=nn_model, batch=batch, loss=gan_loss.js_loss, lr=FLAGS.learning_rate, reg='gp',
                                    lambd=lambd)
         trainer.sub_batches = FLAGS.batch_per_update
@@ -141,7 +141,7 @@ def main(_):
                     #    d_iter = 20
                     #else:
                     #    d_iter = 5
-                    d_iter = 2
+                    d_iter = 1
 
                     errD, s, errG = trainer.update(d_iter, 1)
                     lambd.update(errD)

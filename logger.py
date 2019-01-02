@@ -5,7 +5,7 @@ import threading
 
 class Logger(object):
     def event(self, msg):
-        with open('.\log\event.txt', 'a') as f:
+        with open('./log/event.txt', 'a') as f:
             f.write(msg + '\n')
 
     def log(self, level, msg, *args, **kwargs):
