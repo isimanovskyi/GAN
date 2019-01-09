@@ -117,6 +117,36 @@ class FlattenBlock(torch.nn.Module):
     def forward(self, x):
         return x.reshape((x.size(0), -1))
 
+
+class SelfAttentionBlock(torch.nn.Module):
+    def __init__(self, shape, activation):
+        super(SelfAttentionBlock, self).__init__()
+        self.shape = shape
+        self.activation = activation
+        self.n_filters = 4
+
+        self.conv_1 = torch.nn.Conv2d(in_channels=shape[0], out_channels=self.n_filters, kernel_size=1)
+        self.dense = torch.nn.Linear(self.n_filters*shape[1]*shape[2], shape[1]*shape[2]*self.n_filters)
+        self.conv_2 = torch.nn.Conv2d(in_channels=self.n_filters, out_channels=shape[0], kernel_size=1)
+        self.gamma = torch.nn.Parameter(torch.zeros(1))
+
+    def forward(self, x):
+        batch_size, C, width, height = x.size()
+
+        y = self.conv_1(x)
+        y = self.activation(y)
+        y = y.reshape((batch_size, self.shape[1]*self.shape[2]*self.n_filters))
+
+        y = self.dense(y)
+        y = self.activation(y)
+
+        y = y.reshape((batch_size, self.n_filters, self.shape[1], self.shape[2]))
+        y = self.conv_2(y)
+        y = self.activation(y)
+
+        out = self.gamma * y + (1. - self.gamma)*x
+        return out
+
 class SequentialModel(torch.nn.Sequential):
     def __init__(self, *kwargs):
         super(SequentialModel, self).__init__(*kwargs)
@@ -217,6 +247,12 @@ class SequentialContainer(object):
             self.layers.append(torch.nn.BatchNorm2d(self.input_shape[0]))
         else:
             raise ValueError('Unsupported shape')
+
+    def add_SelfAttention(self, activation):
+        if len(self.input_shape) != 3:
+            raise ValueError('Input is not Convolutional')
+
+        self.layers.append(SelfAttentionBlock(self.input_shape, ActivationBlock(activation)))
 
     def get(self):
         return SequentialModel(*self.layers)

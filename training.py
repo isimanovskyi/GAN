@@ -58,7 +58,7 @@ class Trainer(object):
         #self.d_optim = torch.optim.RMSprop(d_vars, lr)
         #self.g_optim = torch.optim.RMSprop(g_vars, lr)
         self.d_optim = optimizers.RMSpropEx(d_vars, lr)
-        self.g_optim = optimizers.RMSpropEx(g_vars, lr/2.)
+        self.g_optim = optimizers.RMSpropEx(g_vars, lr)
 
     def update_d(self, n_steps):
         self.model.d_model.requires_grad(True)
@@ -85,20 +85,20 @@ class Trainer(object):
                 with torch.no_grad():
                     gen_samples = self.model.g_model(z)
 
-                torch.cuda.empty_cache()
+                #torch.cuda.empty_cache()
 
                 fake_d = self.model.d_model(gen_samples)
                 d_fake_loss = self.loss.get_d_fake(fake_d)/m
                 d_fake_loss.backward()
                 
                 d_loss = d_real_loss + d_fake_loss
-                err_D += (d_loss).cpu().data.numpy()
+                err_D += (d_loss).data.cpu().numpy()
 
                 if self.reg == 'gp':
                     d_reg = float(self.lambd) * self._get_gp_reg(img, gen_samples)/m
                     d_reg.backward()
 
-                    err_S += np.sqrt(d_reg.cpu().data.numpy())
+                    err_S += np.sqrt(d_reg.data.cpu().numpy())
                     del d_reg
 
             self.d_optim.step()
@@ -126,14 +126,14 @@ class Trainer(object):
             
                 gen_samples = self.model.g_model(z)
 
-                torch.cuda.empty_cache()
+                #torch.cuda.empty_cache()
             
                 fake_d = self.model.d_model(gen_samples)
                 g_loss = self.loss.get_g(fake_d)/m
                 g_loss.backward()
 
-                err_G += g_loss.cpu().data.numpy()
-                torch.cuda.empty_cache()
+                err_G += g_loss.data.cpu().numpy()
+                #torch.cuda.empty_cache()
 
             self.g_optim.step()
 
@@ -154,7 +154,7 @@ class Trainer(object):
         with torch.autograd.no_grad():
             gen_samples = self.model.g_model(z)
             gen_samples = torch.clamp(gen_samples, -1., 1.)
-            res = gen_samples.cpu().data.numpy()
+            res = gen_samples.data.cpu().numpy()
 
-        torch.cuda.empty_cache()
+        #torch.cuda.empty_cache()
         return res

@@ -1,0 +1,115 @@
+{
+    "name": "discriminator",
+    "variables": {
+            "activation": {
+                "type": "LeakyReLU",
+                "args": {
+                    "negative_slope": 0.2
+                }
+            },
+            "kernel_size": [5,5],
+            "res_kernel_size": [ 3, 3 ],
+            "use_batch_norm": false
+    },
+
+    "layers": [
+        {
+            "type": "Conv2D",
+            "args": {
+                "channels": 64,
+                "kernel_size": "var/kernel_size",
+                "strides": [ 2, 2 ],
+                "padding": "same"
+            },
+            "activation": "var/activation",
+            "use_batch_norm": "var/use_batch_norm"
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 64,
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation"
+            },
+            "use_batch_norm": "var/use_batch_norm"
+        },
+        {
+            "type": "Conv2D",
+            "args": {
+                "channels": 128,
+                "kernel_size": "var/kernel_size",
+                "strides": [ 2, 2 ],
+                "padding": "same"
+            },
+            "activation": "var/activation",
+            "use_batch_norm": "var/use_batch_norm"
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 128,
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation",
+                "use_batch_norm": "var/use_batch_norm"
+            }
+        },
+        {
+            "type": "Conv2D",
+            "args": {
+                "channels": 256,
+                "kernel_size": "var/kernel_size",
+                "strides": [ 2, 2 ],
+                "padding": "same"
+            },
+            "activation": "var/activation",
+            "use_batch_norm": "var/use_batch_norm"
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 256,
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation",
+                "use_batch_norm": "var/use_batch_norm"
+            }
+        },
+        {
+            "type": "Conv2D",
+            "args": {
+                "channels": 512,
+                "kernel_size": "var/kernel_size",
+                "strides": [ 2, 2 ],
+                "padding": "same"
+            },
+            "activation": "var/activation",
+            "use_batch_norm": "var/use_batch_norm"
+        },
+        {
+            "type": "Residual",
+            "args": {
+                "filters": 512,
+                "kernel_size": "var/res_kernel_size",
+                "activation": "var/activation",
+                "use_batch_norm": "var/use_batch_norm"
+            }
+        },
+        {
+            "type": "Conv2D",
+            "args": {
+                "channels": 1024,
+                "kernel_size": "var/kernel_size",
+                "strides": [ 2, 2 ],
+                "padding": "same"
+            },
+            "activation": "var/activation",
+            "use_batch_norm": "var/use_batch_norm"
+        },
+        {
+            "type": "Flatten"
+        },
+        {
+            "type": "Dense",
+            "args": { "features": 1 }
+        }
+    ]
+}

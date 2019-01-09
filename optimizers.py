@@ -68,8 +68,8 @@ class RMSpropEx(torch.optim.Optimizer):
                 avg = square_avg.sqrt().add_(group['eps'])
                 avg.mul_(squ_bias_correction)
 
-                update = lr * grad / avg
-                updates.append(update)
+                update = grad / avg
+                updates.append((p, update))
 
                 if update_norm is None:
                     update_norm = (update ** 2).sum()
@@ -87,7 +87,7 @@ class RMSpropEx(torch.optim.Optimizer):
 
             update_norm = av_norm*norm_bias_correction + eps
 
-            for p, update in zip(group['params'], updates):
+            for p, update in updates:
                 if p.grad is None:
                     continue
 
