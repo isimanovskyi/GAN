@@ -4,8 +4,12 @@ import time as _time
 import threading
 
 class Logger(object):
+    def __init__(self):
+        self.in_progress = False
+        self.max_progress = 0
+
     def event(self, msg):
-        with open('./log/event.txt', 'a') as f:
+        with open('./checkpoint/event.txt', 'a') as f:
             f.write(msg + '\n')
 
     def log(self, level, msg, *args, **kwargs):
@@ -25,6 +29,29 @@ class Logger(object):
 
     def warning(self, msg, *args, **kwargs):
         print (msg)
+
+    def start_progress(self, max_progress):
+        if self.in_progress:
+            raise RuntimeError('Already in progress')
+        self.in_progress = True
+        self.max_progress = max_progress
+
+    def end_progress(self):
+        if not self.in_progress:
+            raise RuntimeError('Not in progress')
+        self.in_progress = False
+        print ("")
+
+
+    def progress(self, i, msg):
+        if not self.in_progress:
+            raise RuntimeError('Not in progress')
+
+        if i >= self.max_progress:
+            raise ValueError('progress counter too big')
+
+        _sys.stdout.write('\r' + '[%02d/%02d]-' % (i+1, self.max_progress) + msg)
+        _sys.stdout.flush()
 
 _logger = None
 _logger_lock = threading.Lock()
@@ -72,4 +99,13 @@ def fatal(msg, *args, **kwargs):
 
 def warning(msg, *args, **kwargs):
     _get_logger().warning("WARNING: %s" % msg, *args, **kwargs)
+
+def start_progress(max_progress):
+    _get_logger().start_progress(max_progress)
+
+def end_progress():
+    _get_logger().end_progress()
+
+def progress(i, msg):
+    _get_logger().progress(i,msg)
 

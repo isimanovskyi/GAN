@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 import os
 import logger
@@ -86,3 +87,14 @@ def get_items(d):
         return d.iteritems()
 
     return d.items()
+
+def get_torch_device():
+    is_cuda = torch.cuda.is_available()
+    if is_cuda:
+        cur_device = torch.cuda.current_device()
+        device = torch.device('cuda:' + str(cur_device))
+        logger.info('CUDA device: ' + torch.cuda.get_device_name(cur_device))
+    else:
+        device = torch.device('cpu:0')
+        logger.info('CUDA not available')
+    return device

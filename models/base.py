@@ -258,7 +258,7 @@ class SequentialContainer(object):
         return SequentialModel(*self.layers)
 
 class ModelBase(object):
-    def __init__(self, device, batch, **kwargs):
+    def __init__(self, device, z_shape, image_shape, **kwargs):
         self.device = device
 
         if 'g_tanh' in kwargs.keys():
@@ -276,11 +276,11 @@ class ModelBase(object):
         else:
             self.d_act = torch.nn.LeakyReLU(0.2)
 
-        self.d_model = self._get_discriminator(image_shape = batch.get_image_shape())
+        self.d_model = self._get_discriminator(image_shape=image_shape)
         self.d_model.apply(functools.partial(self.init_weights, sigma=0.01))
         self.d_model.to(device = device)
 
-        self.g_model = self._get_generator(z_shape = batch.get_z_shape(), image_shape = batch.get_image_shape())
+        self.g_model = self._get_generator(z_shape=z_shape, image_shape=image_shape)
         self.g_model.apply(functools.partial(self.init_weights, sigma=0.01))
         self.g_model.to(device = device)
 
@@ -295,7 +295,7 @@ class ModelBase(object):
         return self.d_model.parameters(), self.g_model.parameters()
 
     def _load_weights(self, model, file):
-        model.load_state_dict(torch.load(file))
+        model.load_state_dict(torch.load(file, map_location=lambda storage, loc: storage))
 
     def _save_weights(self, model, file):
         torch.save(model.state_dict(), file)
@@ -325,6 +325,7 @@ class ModelBase(object):
             self._load_weights(self.g_model, g_file)
             return True
 
-        except:
+        except Exception as e:
+            print (e)
             return False
 
