@@ -1,6 +1,6 @@
 
-import numpy as np
 import torch
+import torchvision
 
 import models.base
 
@@ -124,10 +124,10 @@ class ResidualModel(models.base.ModelBase):
 
         net.add_Conv2D(df_dim*8, kernel_size=(5, 5), strides=(2,2), padding = models.base.get_same_padding((5,5)))
         net.add_Activation(self.d_act)
-    
+
         net.add_Flatten()
         net.add_Dense(1)
-            
+
         return net.get()
 
 
@@ -281,4 +281,127 @@ class MLPModel(models.base.ModelBase):
         net.add_Activation(self.d_act)
 
         net.add_Dense(1)
+        return net.get()
+
+class MMDModel(models.base.ModelBase):
+    def _get_generator(self, z_shape, image_shape):
+        gf_dim = 64
+        s16 = (int(image_shape[1]/16), int(image_shape[2]/16))
+
+        net = models.base.SequentialContainer(z_shape)
+
+        net.add_Dense(gf_dim*8*s16[0]*s16[1])
+        net.add_Reshape((gf_dim//2, 4*s16[0], 4*s16[1]))
+        net.add_Activation(self.g_act)
+
+        net.add_Conv2DTranspose(gf_dim, kernel_size=(5, 5), strides=(2,2), padding = models.base.get_same_padding((5,5)), output_padding=(1,1))
+        net.add_Activation(self.g_act)
+
+        net.add_Conv2DTranspose(gf_dim, kernel_size=(5, 5), strides=(2,2), padding = models.base.get_same_padding((5,5)), output_padding=(1,1))
+        net.add_Activation(self.g_act)
+
+        net.add_Conv2D(3, kernel_size=(3, 3), strides=(1,1), padding = models.base.get_same_padding((3,3)))
+
+        if self.g_tanh:
+           net.add_Activation(torch.nn.Tanh())
+
+        return net.get()
+
+        s16 = (int(image_shape[1] / 16), int(image_shape[2] / 16))
+        gf_dim = 64  # Dimension of gen filters in first conv layer. [64]
+        k_size = (3,3)
+
+        net = models.base.SequentialContainer(z_shape)
+
+        net.add_Dense(gf_dim * 8 * s16[0] * s16[1])
+        net.add_Reshape((gf_dim * 8, s16[0], s16[1]))
+        net.add_Activation(self.g_act)
+
+        #net.add_Residual(gf_dim * 8, kernel_size=k_size, activation=self.g_act)
+        #net.add_Residual(gf_dim * 8, kernel_size=k_size, activation=self.g_act)
+        #net.add_Residual(gf_dim * 8, kernel_size=k_size, activation=self.g_act)
+
+        net.add_Conv2DTranspose(gf_dim * 8, kernel_size=k_size, strides=(2, 2),padding=models.base.get_same_padding(k_size), output_padding=(1, 1))
+        net.add_Activation(self.g_act)
+
+        #net.add_Residual(gf_dim * 4, kernel_size=k_size, activation=self.g_act)
+        #net.add_Residual(gf_dim * 4, kernel_size=k_size, activation=self.g_act)
+        #net.add_Residual(gf_dim * 4, kernel_size=k_size, activation=self.g_act)
+
+        net.add_Conv2DTranspose(gf_dim * 4, kernel_size=k_size, strides=(2, 2),padding=models.base.get_same_padding(k_size), output_padding=(1, 1))
+        net.add_Activation(self.g_act)
+
+        #net.add_Residual(gf_dim * 2, kernel_size=k_size, activation=self.g_act)
+        #net.add_Residual(gf_dim * 2, kernel_size=k_size, activation=self.g_act)
+        #net.add_Residual(gf_dim * 2, kernel_size=k_size, activation=self.g_act)
+
+        net.add_Conv2DTranspose(gf_dim * 2, kernel_size=k_size, strides=(2, 2),padding=models.base.get_same_padding(k_size), output_padding=(1, 1))
+        net.add_Activation(self.g_act)
+
+        #net.add_Residual(gf_dim, kernel_size=k_size, activation=self.g_act)
+        #net.add_Residual(gf_dim, kernel_size=k_size, activation=self.g_act)
+        #net.add_Residual(gf_dim, kernel_size=k_size, activation=self.g_act)
+
+        net.add_Conv2DTranspose(gf_dim, kernel_size=k_size, strides=(2, 2), padding=models.base.get_same_padding(k_size), output_padding=(1, 1))
+        net.add_Activation(self.g_act)
+
+        #net.add_Residual(16, kernel_size=k_size, activation=self.g_act)
+        #net.add_Residual(16, kernel_size=k_size, activation=self.g_act)
+        #net.add_Residual(16, kernel_size=k_size, activation=self.g_act)
+
+        net.add_Conv2D(3, kernel_size=k_size, strides=(1, 1), padding=models.base.get_same_padding(k_size))
+
+        if self.g_tanh:
+            net.add_Activation(torch.nn.Tanh())
+
+        return net.get()
+
+    def _get_discriminator(self, image_shape):
+        use_batch_norm = False
+        kernel_size = (3,3)
+
+        net = models.base.SequentialContainer(image_shape)
+
+        net.add_Conv2D(64, kernel_size=kernel_size, strides=(2, 2), padding=models.base.get_same_padding(kernel_size))
+        if use_batch_norm:
+            net.add_BatchNorm()
+        net.add_Activation(self.d_act)
+
+        #net.add_Residual(64, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+        #net.add_Residual(64, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+        #net.add_Residual(64, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+
+        net.add_Conv2D(128, kernel_size=kernel_size, strides=(2, 2), padding=models.base.get_same_padding(kernel_size))
+        if use_batch_norm:
+            net.add_BatchNorm()
+        net.add_Activation(self.d_act)
+
+        #net.add_Residual(128, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+        #net.add_Residual(128, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+        #net.add_Residual(128, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+
+        net.add_Conv2D(256, kernel_size=kernel_size, strides=(2, 2), padding=models.base.get_same_padding(kernel_size))
+        if use_batch_norm:
+            net.add_BatchNorm()
+        net.add_Activation(self.d_act)
+
+        #net.add_Residual(256, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+        #net.add_Residual(256, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+        #net.add_Residual(256, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+
+        net.add_Conv2D(512, kernel_size=kernel_size, strides=(2, 2), padding=models.base.get_same_padding(kernel_size))
+        if use_batch_norm:
+            net.add_BatchNorm()
+        net.add_Activation(self.d_act)
+
+        #net.add_Residual(512, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+        #net.add_Residual(512, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+        #net.add_Residual(512, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+
+        net.add_AvgPooling()
+
+        net.add_Flatten()
+        net.add_Dense(1)
+        #net.add_NormBlock()
+
         return net.get()

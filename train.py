@@ -56,7 +56,7 @@ def main(_):
 
     #lambd = lambda_scheduler.Constant(0.1)
     lambd = lambda_scheduler.ThresholdAnnealing(1000.)
-    trainer = Trainer(model=nn_model, batch=batch, loss=gan_loss.js_loss, lr=FLAGS.learning_rate,
+    trainer = Trainer(model=nn_model, batch=batch, loss=gan_loss.js_loss(), lr=FLAGS.learning_rate,
                       reg='gp', lambd=lambd)
     trainer.sub_batches = FLAGS.batch_per_update
 
@@ -123,7 +123,7 @@ def main(_):
             #else:
             #    d_iter = 5
             d_iter = 1
-
+#
             errD, s, errG = trainer.update(d_iter, 1)
             lambd.update(errD)
 

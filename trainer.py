@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import optimizers
-import gc
 
 class Trainer(object):
     def __init__(self, model, batch, loss, lr, reg, lambd):
@@ -9,7 +8,7 @@ class Trainer(object):
         self.batch = batch
         self.sub_batches = 1
 
-        self.loss = loss(d_model=self.model.d_model, g_model=self.model.g_model)
+        self.loss = loss
         self.reg = reg
         self.lambd = lambd
         self._init_optimizer(lr)
@@ -50,6 +49,12 @@ class Trainer(object):
 
         return reg
 
+    def _get_reg(self, img, gen_samples):
+        if self.reg == 'gp':
+            return self._get_gp_reg(img, gen_samples)
+        else:
+            return None
+
     def _init_optimizer(self, lr):
         d_vars, g_vars = self.model.get_weights()
 
@@ -57,6 +62,7 @@ class Trainer(object):
         #self.g_optim = torch.optim.SGD(g_vars, lr)
         self.d_optim = torch.optim.RMSprop(d_vars, lr)
         self.g_optim = torch.optim.RMSprop(g_vars, lr)
+        #self.g_optim = optimizers.MSENatGradOptimizer(self.model.g_model, g_vars, lr)
         #self.d_optim = optimizers.RMSpropEx(d_vars, lr)
         #self.g_optim = optimizers.RMSpropEx(g_vars, lr/3.)
 
@@ -69,7 +75,7 @@ class Trainer(object):
         for _ in range(n_steps):
             #print ('update_d')
             #zero_grad
-            self.model.d_model.zero_grad()
+            self.d_optim.zero_grad()
 
             #update gradient
             m = float(self.sub_batches)
@@ -79,27 +85,38 @@ class Trainer(object):
                 z = b['z'].to(self.model.device)
                 img = b['images'].to(self.model.device)
 
-                real_d = self.model.d_model(img)
-                d_real_loss = self.loss.get_d_real(real_d)/m
-                d_real_loss.backward()
+                if self.loss.allows_separate_d:
+                    real_d = self.model.d_model(img)
+                    d_real_loss = self.loss.get_d_real(real_d)/m
+                    d_real_loss.backward()
 
-                with torch.no_grad():
-                    gen_samples = self.model.g_model(z)
+                    with torch.no_grad():
+                        gen_samples = self.model.g_model(z)
 
-                #torch.cuda.empty_cache()
+                    fake_d = self.model.d_model(gen_samples)
+                    d_fake_loss = self.loss.get_d_fake(fake_d)/m
+                    d_fake_loss.backward()
 
-                fake_d = self.model.d_model(gen_samples)
-                d_fake_loss = self.loss.get_d_fake(fake_d)/m
-                d_fake_loss.backward()
-                
-                d_loss = d_real_loss + d_fake_loss
+                    d_loss = d_real_loss + d_fake_loss
+                else:
+                    with torch.no_grad():
+                        gen_samples = self.model.g_model(z)
+
+                    real_d = self.model.d_model(img)
+                    fake_d = self.model.d_model(gen_samples)
+
+                    d_loss = self.loss.get_d(real_d, fake_d)/m
+                    d_loss.backward()
+
                 err_D += (d_loss).data.cpu().numpy()
 
-                if self.reg == 'gp':
-                    d_reg = float(self.lambd) * self._get_gp_reg(img, gen_samples)/m
+                reg = self._get_reg(img, gen_samples)
+                if reg is not None:
+                    reg /= m
+                    d_reg = float(self.lambd) * reg
                     d_reg.backward()
 
-                    err_S += np.sqrt(d_reg.data.cpu().numpy())
+                    err_S += np.sqrt(reg.data.cpu().numpy())
                     del d_reg
 
             self.d_optim.step()
@@ -116,56 +133,36 @@ class Trainer(object):
         err_G = 0.
         for _ in range(n_steps):
             #zero_grad
-            self.model.g_model.zero_grad()
+            self.g_optim.zero_grad()
 
-            old_params = {}
-            for name, params in self.model.g_model.named_parameters():
-                old_params[name] = params.clone().detach()
-
-            #update gradient
-            z_lst = []
+             #update gradient
             m = float(self.sub_batches)
             for i in range(self.sub_batches):
                 #print ('update_g')
-                z = self.batch.get_z()
-                z_gpu = z.to(self.model.device)
+                b = self.batch.get()
 
-                gen_samples = self.model.g_model(z_gpu)
+                z = b['z'].to(self.model.device)
+                img = b['images'].to(self.model.device)
 
-                z_lst.append((z, gen_samples.to('cpu')))
+                gen_samples = self.model.g_model(z)
 
                 #update via discriminator
+                with torch.no_grad():
+                    real_d = self.model.d_model(img)
                 fake_d = self.model.d_model(gen_samples)
-                g_loss = self.loss.get_g(fake_d)/m
 
+                g_loss = self.loss.get_g(real_d, fake_d)/m
                 g_loss.backward()
 
                 err_G += g_loss.data.cpu().numpy()
-                #torch.cuda.empty_cache()
 
             self.g_optim.step()
-
-            #check trust region
-            with torch.no_grad():
-                R = 0.
-                for z, samples in z_lst:
-                    #z = z.clone().detach().to(self.model.device)
-                    gen_samples = self.model.g_model(z.to(self.model.device))
-                    gen_samples = gen_samples.to('cpu')
-                    R += (samples - gen_samples).pow(2).mean()
-
-                alpha = 0.1
-                beta = np.clip(np.sqrt(alpha/R), 0., 1.)
-                print (beta)
-
-                #update model
-                for name, params in self.model.g_model.named_parameters():
-                    params.copy_(beta*params + (1.-beta)*old_params[name])
 
         err_G /= float(n_steps)
         return err_G
 
     def update(self, d_steps, g_steps):
+        self.model.train()
         errD, s = self.update_d(d_steps)
         errG = self.update_g(g_steps)
         return errD, s, errG

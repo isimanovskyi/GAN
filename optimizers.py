@@ -1,96 +1,149 @@
 import torch
 import numpy as np
 
-class RMSpropEx(torch.optim.Optimizer):
-    def __init__(self, params, lr=1e-2, alpha=0.99, beta=0.5, eps=1e-8):
-        if not 0.0 <= lr:
-            raise ValueError("Invalid learning rate: {}".format(lr))
-        if not 0.0 <= eps:
-            raise ValueError("Invalid epsilon value: {}".format(eps))
-        if not 0.0 <= alpha:
-            raise ValueError("Invalid alpha value: {}".format(alpha))
+class ProxyOpt(object):
+    def __init__(self, params, lr):
+        pass
 
-        defaults = dict(lr=lr, alpha=alpha, beta=beta, eps=eps, step=0)
-        super(RMSpropEx, self).__init__(params, defaults)
-
-    def __setstate__(self, state):
-        super(RMSpropEx, self).__setstate__(state)
-        raise NotImplementedError('not implemented')
-
-    def _get_norm(self, v, norm):
-        if norm == 'l2':
-            return sum([(p**2).sum() for p in v]).sqrt()
-        else:
-            raise ValueError('Not supported norm')
+    def zero_grad(self):
+        pass
 
     def step(self, closure=None):
-        loss = None
-        if closure is not None:
-            loss = closure()
+        pass
 
-        for group in self.param_groups:
-            lr = group['lr']
-            alpha = group['alpha']
-            beta = group['beta']
-            eps = group['eps']
-            step = group['step']
+class Vector(object):
+    def __init__(self, v):
+        if type(v) is Vector:
+            self.v = v.v
+        else:
+            self.v = [vi for vi in v]
 
-            group['step'] += 1
+    def __add__(self, v):
+        return Vector([v1i + v2i for v1i, v2i in zip(self.v, v.v)])
 
-            t = float(step + 1)
-            squ_bias_correction = 1./(1.-np.power(alpha, t))
-            norm_bias_correction = 1./(1.-np.power(beta, t))
+    def __sub__(self, v):
+        return Vector([v1i - v2i for v1i,v2i in zip(self.v, v.v)])
 
-            device = None
+    def __mul__(self, s):
+        if type(s) is Vector:
+            return Vector([v1i*v2i for v1i,v2i in self.v,s.v])
+        else:
+            return Vector([vi * s for vi in self.v])
 
-            updates = []
-            update_norm = None
-            for p in group['params']:
-                if p.grad is None:
-                    continue
+    def __mod__(self, v):
+        return sum([(v1i * v2i).sum() for v1i, v2i in zip(self.v,v.v)])
 
-                if device is None:
-                    device = p.device
+    def __abs__(self):
+        return sum([vi.pow(2).sum() for vi in self.v])
 
-                grad = p.grad.data
-                if grad.is_sparse:
-                    raise RuntimeError('RMSpropEx does not support sparse gradients')
+    def clone(self):
+        return Vector([vi.clone() for vi in self.v])
 
-                state = self.state[p]
 
-                # State initialization
-                if len(state) == 0:
-                    state['square_avg'] = torch.zeros_like(p.data)
 
-                square_avg = state['square_avg']
-                
-                square_avg.mul_(alpha).addcmul_(1 - alpha, grad, grad)
-                avg = square_avg.sqrt().add_(group['eps'])
-                avg.mul_(squ_bias_correction)
+class MSEBoundOptimizer(object):
+    def __init__(self, model, lr=1e-2, alpha=0.99, delta=0.1, eps=1e-8):
+        self.model = model
+        self.delta = delta
+        self.opt = torch.optim.RMSprop(model.parameters(), lr, alpha, eps)
 
-                update = grad / avg
-                updates.append((p, update))
+    def zero_grad(self):
+        self.opt.zero_grad()
 
-                if update_norm is None:
-                    update_norm = (update ** 2).sum()
-                else:
-                    update_norm += (update ** 2).sum()
+    def step(self, z_list, closure=None):
+        with torch.no_grad():
+            old_params = {}
+            for name, params in self.model.named_parameters():
+                old_params[name] = params.clone().detach()
 
-            if 'av_norm' in group.keys():
-                av_norm = group['av_norm']
-            else:
-                av_norm = torch.zeros(1, device=device)
-                group['av_norm'] = av_norm
+            res = self.opt.step(closure)
 
-            update_norm = update_norm.sqrt()
-            av_norm.mul_(beta).add_((1 - beta)*update_norm)
+            device = next(self.model.parameters()).device
 
-            update_norm = av_norm*norm_bias_correction + eps
+            r = 0.
+            for z, samples in z_list:
+                gen_samples = self.model(z.to(device))
+                gen_samples = gen_samples.to('cpu')
+                r += (samples - gen_samples).pow(2).mean()
 
-            for p, update in updates:
-                if p.grad is None:
-                    continue
+            r = r.view(1, ).data.numpy()[0]
 
-                p.data -= lr * update / update_norm
+            alpha = np.sqrt(self.delta / r)
+            beta = np.clip(alpha, 0., 1.)
+            print (beta, alpha, r)
 
-        return loss
+            # update model
+            for name, params in self.model.named_parameters():
+                params.copy_(beta * params + (1. - beta) * old_params[name])
+
+            return res
+
+class MSENatGradOptimizer(object):
+    def __init__(self, model, params, lr):
+        self.model = model
+        self.params = [p for p in params]
+        self.lr = lr
+
+    def zero_grad(self):
+        for p in self.params:
+            if p.grad is not None:
+                if p.grad is not None:
+                    p.grad.detach_()
+                    p.grad.zero_()
+
+    def _get_grad(self):
+        return Vector([p.grad.clone() for p in self.params])
+
+    def _get_hessian_vector_product(self, z_list, v):
+        self.zero_grad()
+
+        device = next(self.model.parameters()).device
+
+        R = 0.
+        for z, samples in z_list:
+            gen_samples = self.model(z.to(device))
+            with torch.no_grad():
+                samples_ng = gen_samples.clone().detach()
+            R += (gen_samples - samples_ng).pow(2).mean()
+
+        grad_f = torch.autograd.grad(R, self.params, create_graph=True)
+
+        ip = Vector(grad_f) % v
+        ip.backward()
+
+        res = self._get_grad()
+        return res
+
+    def _conjugate_grad(self, g, z_list, max_iter = 10):
+        x = g
+        r = g - self._get_hessian_vector_product(z_list, x)
+        p = r.clone()
+        r_norm = abs(r)
+
+        for i in xrange(max_iter):
+            Hp = self._get_hessian_vector_product(z_list, p)
+            alpha = r_norm / (p % Hp)
+
+            x = x + p * alpha
+            r = r - Hp * alpha
+
+            #Hx = self._get_hessian_vector_product(z_list, x)
+            #J = 0.5*(x%Hx) - g%x
+            #print (J)
+
+            r_norm_1 = abs(r)
+
+            if r_norm_1 < 1e-3:
+                print ('it %d'%(i))
+                break
+
+            p = r + p * (r_norm_1/r_norm)
+            r_norm = r_norm_1
+
+        return x
+
+    def step(self, z_list):
+        g = self._get_grad()
+        g = self._conjugate_grad(g, z_list)
+
+

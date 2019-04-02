@@ -27,6 +27,13 @@ def convert_padding(padding, kernel_size):
 
     return tuple(padding)
 
+class IdentityBlock(torch.nn.Module):
+    def __init__(self, **kwargs):
+        super(IdentityBlock, self).__init__(**kwargs)
+
+    def forward(self, x):
+        return x
+
 class ActivationBlock(torch.nn.Module):
     def __init__(self, act, **kwargs):
         super(ActivationBlock, self).__init__(**kwargs)
@@ -98,9 +105,17 @@ class ResidualBlock(torch.nn.Module):
         if self.use_batch_norm:
             y = self.conv2_bn(y)
 
-        x = y + z
-        x = self.activation(x)
-        return x
+        return self.activation(y + z)
+
+class ResidualBlock2(torch.nn.Module):
+    def __init__(self, in_filters, out_filters, kernel_size, activation, use_batch_norm, **kwargs):
+        super(ResidualBlock2, self).__init__(**kwargs)
+        self.resblock = ResidualBlock(in_filters, out_filters, kernel_size, activation, use_batch_norm, **kwargs)
+
+    def forward(self, x):
+        if self.resblock.conj_conv:
+            return self.resblock(x)
+        return x + self.resblock(x)
 
 class ReshapeBlock(torch.nn.Module):
     def __init__(self, shape, keep_batch=True,**kwargs):
@@ -146,6 +161,14 @@ class SelfAttentionBlock(torch.nn.Module):
 
         out = self.gamma * y + (1. - self.gamma)*x
         return out
+
+class NormBlock(torch.nn.Module):
+    def __init__(self, eps=1e-7, **kwargs):
+        super(NormBlock, self).__init__(**kwargs)
+        self.epsilon = eps
+
+    def forward(self, x):
+        return (x - x.mean(0))/(x.std(0) + self.epsilon)
 
 class SequentialModel(torch.nn.Sequential):
     def __init__(self, *kwargs):
@@ -237,22 +260,35 @@ class SequentialContainer(object):
         if len(self.input_shape) != 3:
             raise ValueError('Input is not Convolutional')
 
-        self.layers.append(ResidualBlock(self.input_shape[0],filters,kernel_size,activation, use_batch_norm))
+        self.layers.append(ResidualBlock2(self.input_shape[0],filters,kernel_size,activation, use_batch_norm))
         self.input_shape = (filters, self.input_shape[1], self.input_shape[2])
 
-    def add_BatchNorm(self):
+    def add_BatchNorm(self, affine=True):
         if len(self.input_shape) == 1:
-            self.layers.append(torch.nn.BatchNorm1d(self.input_shape[0]))
+            self.layers.append(torch.nn.BatchNorm1d(self.input_shape[0], affine=affine))
         elif len(self.input_shape) == 3:
-            self.layers.append(torch.nn.BatchNorm2d(self.input_shape[0]))
+            self.layers.append(torch.nn.BatchNorm2d(self.input_shape[0], affine=affine))
         else:
             raise ValueError('Unsupported shape')
+
+    def add_NormBlock(self):
+        self.layers.append(NormBlock())
 
     def add_SelfAttention(self, activation):
         if len(self.input_shape) != 3:
             raise ValueError('Input is not Convolutional')
 
         self.layers.append(SelfAttentionBlock(self.input_shape, ActivationBlock(activation)))
+
+    def add_AvgPooling(self):
+        if len(self.input_shape) != 3:
+            raise ValueError('Input is not Convolutional')
+
+        self.layers.append(torch.nn.AdaptiveAvgPool2d((1,1)))
+        self.input_shape = (self.input_shape[0], 1, 1)
+
+    def add_Identity(self):
+        self.layers.append(IdentityBlock())
 
     def get(self):
         return SequentialModel(*self.layers)
@@ -289,7 +325,8 @@ class ModelBase(object):
             or isinstance(m, torch.nn.Conv2d) \
             or isinstance(m, torch.nn.ConvTranspose2d):
             torch.nn.init.normal_(m.weight, mean=0., std=sigma)
-            torch.nn.init.constant_(m.bias, 0.)
+            if m.bias is not None:
+                torch.nn.init.constant_(m.bias, 0.)
 
     def get_weights(self):
         return self.d_model.parameters(), self.g_model.parameters()
@@ -328,4 +365,8 @@ class ModelBase(object):
         except Exception as e:
             print (e)
             return False
+
+    def train(self):
+        self.d_model.train()
+        self.g_model.train()
 

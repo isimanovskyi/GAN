@@ -4,7 +4,7 @@ import dataset.image_files
 class CelebA(dataset.image_files.ImageFiles):
     name = 'celeba'
 
-    def __init__(self, data_folder, batch_size, grayscale = False, output_shapes = None, center_crop = None):
+    def __init__(self, data_folder, grayscale = False, output_shapes = None, center_crop = None):
         path = os.path.join(data_folder, CelebA.name, '*.jpg')
         super(CelebA, self).__init__(path, grayscale, output_shapes, center_crop)
 
