@@ -293,6 +293,22 @@ class SequentialContainer(object):
     def get(self):
         return SequentialModel(*self.layers)
 
+class Discriminator(torch.nn.Module):
+    def __init__(self, features, fc, ae = None, **kwargs):
+        super(Discriminator, self).__init__(**kwargs)
+        self.features = features
+        self.fc = fc
+        self.ae = ae
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.fc(x)
+        return x
+
+    def requires_grad(self, req_grad):
+        for p in self.parameters():
+            p.requires_grad = req_grad
+
 class ModelBase(object):
     def __init__(self, device, z_shape, image_shape, **kwargs):
         self.device = device

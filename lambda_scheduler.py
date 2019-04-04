@@ -6,7 +6,7 @@ class Constant(object):
         self.lambd = lambd
 
     def update(self, errD):
-        pass
+        return False
 
     def __float__(self):
         return self.lambd
@@ -38,10 +38,12 @@ class ThresholdAnnealing(object):
         self.errD_av = self.beta * self.errD_av + (1.-self.beta)*errD
         errD_av_corrected = self.errD_av/(1.-np.power(self.beta, t))
 
-        if errD_av_corrected > self.threshold and self.step > self.step_switched + self.min_switch_step:
+        bSwitch = errD_av_corrected > self.threshold and self.step > self.step_switched + self.min_switch_step
+        if bSwitch:
             self.step_switched = self.step
             self.lambd /= 2.
             logger.event('[%d] lambda switched: from %4.4f to %4.4f'% (self.step, self.lambd*2, self.lambd))
+        return bSwitch
 
     def __float__(self):
         return self.lambd

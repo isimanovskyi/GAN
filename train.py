@@ -113,6 +113,8 @@ def main(_):
     #        print ("[%2d/%2d]" % (i, n_pretrain_steps))
     #print('Done')
 
+    bLambdaSwitched = False
+
     for epoch in range(FLAGS.epoch):
         for b in range(batches_per_epoch):
             start_time = time.time()
@@ -122,10 +124,14 @@ def main(_):
             #    d_iter = 20
             #else:
             #    d_iter = 5
-            d_iter = 1
+            if bLambdaSwitched:
+                #if lambda was switched we want to keep discriminator optimal
+                d_iter = 25
+            else:
+                d_iter = 1
 #
             errD, s, errG = trainer.update(d_iter, 1)
-            lambd.update(errD)
+            bLambdaSwitched = lambd.update(errD)
 
             end_time = time.time()
 

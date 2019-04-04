@@ -1,16 +1,6 @@
 import torch
 import numpy as np
 
-class ProxyOpt(object):
-    def __init__(self, params, lr):
-        pass
-
-    def zero_grad(self):
-        pass
-
-    def step(self, closure=None):
-        pass
-
 class Vector(object):
     def __init__(self, v):
         if type(v) is Vector:
@@ -45,6 +35,7 @@ class MSEBoundOptimizer(object):
     def __init__(self, model, lr=1e-2, alpha=0.99, delta=0.1, eps=1e-8):
         self.model = model
         self.delta = delta
+        self.epsilon = eps
         self.opt = torch.optim.RMSprop(model.parameters(), lr, alpha, eps)
 
     def zero_grad(self):
@@ -58,17 +49,14 @@ class MSEBoundOptimizer(object):
 
             res = self.opt.step(closure)
 
-            device = next(self.model.parameters()).device
-
             r = 0.
             for z, samples in z_list:
-                gen_samples = self.model(z.to(device))
-                gen_samples = gen_samples.to('cpu')
+                gen_samples = self.model(z)
                 r += (samples - gen_samples).pow(2).mean()
 
-            r = r.view(1, ).data.numpy()[0]
+            r = r.view(1, ).data.cpu().numpy()[0]
 
-            alpha = np.sqrt(self.delta / r)
+            alpha = np.sqrt(self.delta / (r + self.epsilon))
             beta = np.clip(alpha, 0., 1.)
             print (beta, alpha, r)
 
