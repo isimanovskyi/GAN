@@ -30,6 +30,7 @@ utils.flags.DEFINE_string("sample_dir", "samples", "Directory name to save the i
 utils.flags.DEFINE_string("log_dir", "log", "Directory name to save the logs [log]")
 utils.flags.DEFINE_integer("z_dim", 100, "Dimensions of generator input [100]")
 utils.flags.DEFINE_string("model_name", "Model", "Name of the model [Model]")
+utils.flags.DEFINE_integer("lambda_switch_steps", 500, "Name of steps to wait before annealing lambda")
 FLAGS = utils.flags.FLAGS()
 
 
@@ -55,7 +56,7 @@ def main(_):
     nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, image_shape=image_shape,z_shape=z_shape)
 
     #lambd = lambda_scheduler.Constant(0.1)
-    lambd = lambda_scheduler.ThresholdAnnealing(1000.)
+    lambd = lambda_scheduler.ThresholdAnnealing(1000., min_switch_step=FLAGS.lambda_switch_steps)
     trainer = Trainer(model=nn_model, batch=batch, loss=gan_loss.js_loss(), lr=FLAGS.learning_rate,
                       reg='gp', lambd=lambd)
     trainer.sub_batches = FLAGS.batch_per_update

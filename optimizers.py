@@ -32,7 +32,7 @@ class Vector(object):
 
 
 class MSEBoundOptimizer(object):
-    def __init__(self, model, lr=1e-2, alpha=0.99, delta=0.1, eps=1e-8):
+    def __init__(self, model, lr=1e-2, alpha=0.99, delta=0.2, eps=1e-8):
         self.model = model
         self.delta = delta
         self.epsilon = eps
@@ -52,11 +52,11 @@ class MSEBoundOptimizer(object):
             r = 0.
             for z, samples in z_list:
                 gen_samples = self.model(z)
-                r += (samples - gen_samples).pow(2).mean()
+                r += (samples - gen_samples).abs().mean()
 
             r = r.view(1, ).data.cpu().numpy()[0]
 
-            alpha = np.sqrt(self.delta / (r + self.epsilon))
+            alpha = self.delta / (r + self.epsilon)
             beta = np.clip(alpha, 0., 1.)
             print (beta, alpha, r)
 
