@@ -48,6 +48,7 @@ class ThresholdAnnealing(object):
                 logger.event('[%d] lambda switched: from %4.4f to %4.4f; %.8f' % (self.step, self.lambd * 2, self.lambd, self.errD_av))
 
                 bSwitch = True
+                self.step_hit = self.step
 
             if prev_value < self.threshold:
                 self.step_hit = self.step

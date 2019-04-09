@@ -16,7 +16,7 @@ class Vector(object):
 
     def __mul__(self, s):
         if type(s) is Vector:
-            return Vector([v1i*v2i for v1i,v2i in self.v,s.v])
+            return Vector([v1i*v2i for v1i,v2i in zip(self.v,s.v)])
         else:
             return Vector([vi * s for vi in self.v])
 
