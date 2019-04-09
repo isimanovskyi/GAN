@@ -5,7 +5,12 @@ import PIL
 from glob import glob
 
 class ImageFiles(torch.utils.data.Dataset):
-    def __init__(self, path, grayscale = False, output_shapes = None, center_crop = None):
+    def __init__(self, path, grayscale = False, output_shapes = None, center_crop = None, device = None):
+        #intializing tensor device
+        self.device = device
+        if self.device is None:
+            self.device = torch.device('cpu')
+
         #base transforms + augmentation
         transforms_list = []
         if grayscale:
@@ -60,5 +65,5 @@ class ImageFiles(torch.utils.data.Dataset):
         if self.single_transform:
             return self.transforms(img)
 
-        return [t(img) for t in self.transforms]
+        return [t(img).to(self.device) for t in self.transforms]
 

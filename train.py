@@ -39,6 +39,8 @@ def main(_):
     utils.exists_or_mkdir(FLAGS.sample_dir)
     utils.exists_or_mkdir(FLAGS.log_dir)
 
+    logger.info('[Params] lr:%f, size:%d, dataset:%s'%(FLAGS.learning_rate, FLAGS.output_size, FLAGS.dataset))
+
     #dataset
     z_shape = (FLAGS.z_dim,)
     image_size = (FLAGS.output_size, FLAGS.output_size)

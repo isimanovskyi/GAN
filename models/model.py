@@ -284,6 +284,7 @@ class MLPModel(models.base.ModelBase):
 
 class MMDModel(models.base.ModelBase):
     def _get_generator(self, z_shape, image_shape):
+        use_batch_norm = False
         start_shape = 4
         gf_dim = 64  # Dimension of gen filters in first conv layer. [64]
         k_size = (3,3)
@@ -300,17 +301,19 @@ class MMDModel(models.base.ModelBase):
         for n_block in range(n_blocks):
             k = 2**(n_blocks - 1 - n_block)
             #
-            net.add_Residual(gf_dim * k, kernel_size=k_size, activation=self.g_act)
-            net.add_Residual(gf_dim * k, kernel_size=k_size, activation=self.g_act)
-            net.add_Residual(gf_dim * k, kernel_size=k_size, activation=self.g_act)
+            net.add_Residual(gf_dim * k, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
+            net.add_Residual(gf_dim * k, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
+            net.add_Residual(gf_dim * k, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
 
             net.add_Conv2DTranspose(gf_dim * k, kernel_size=k_size, strides=(2, 2),
                                     padding=models.base.get_same_padding(k_size), output_padding=(1, 1))
+            if use_batch_norm:
+                net.add_BatchNorm()
             net.add_Activation(self.g_act)
 
-        net.add_Residual(16, kernel_size=k_size, activation=self.g_act)
-        net.add_Residual(16, kernel_size=k_size, activation=self.g_act)
-        net.add_Residual(16, kernel_size=k_size, activation=self.g_act)
+        net.add_Residual(16, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
+        net.add_Residual(16, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
+        net.add_Residual(16, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
 
         net.add_Conv2D(3, kernel_size=k_size, strides=(1, 1), padding=models.base.get_same_padding(k_size))
 

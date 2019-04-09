@@ -9,8 +9,6 @@ class loss_base(object):
         else:
             self.eps = 1e-7
 
-        self.allows_separate_d = True
-
     def fd(self, x):
         raise NotImplemented('This is abstract method')
 
@@ -26,11 +24,12 @@ class loss_base(object):
     def get_d_fake(self, fake_d):
         return self.fg(fake_d).mean()
 
-    def get_d(self, real_d, fake_d):
-        return self.fd(real_d).mean() + self.fg(fake_d).mean()
-    
-    def get_g(self, real_d, fake_d):
+    def get_g(self, fake_d):
         return self.fg2(fake_d).mean()
+
+    @property
+    def zero_level(self):
+        raise NotImplemented('This is abstract method')
 
 class pearson_loss(loss_base):
     def __init__(self, **kwargs):
@@ -45,6 +44,10 @@ class pearson_loss(loss_base):
     def fg2(self, x):
         return x
 
+    @property
+    def zero_level(self):
+        return -0.5
+
 class crossentropy_loss(loss_base):
     def __init__(self, **kwargs):
         super(crossentropy_loss, self).__init__(**kwargs)
@@ -54,6 +57,10 @@ class crossentropy_loss(loss_base):
 
     def fg(self, x):
         return torch.nn.functional.binary_cross_entropy_with_logits(x, torch.zeros_like(x), reduction='none')
+
+    @property
+    def zero_level(self):
+        return 1.3863
     
 class js_loss(crossentropy_loss):
     def __init__(self, **kwargs):
@@ -88,6 +95,10 @@ class wasserstein_loss(loss_base):
     
     def fg2(self, x):
         return -x
+
+    @property
+    def zero_level(self):
+        return 0.
 
 class mmd_loss(loss_base):
     def __init__(self, **kwargs):

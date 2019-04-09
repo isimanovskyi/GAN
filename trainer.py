@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import optimizers
-import mmd.kernels
 
 
 class Trainer(object):
@@ -64,36 +63,35 @@ class Trainer(object):
         #self.g_optim = torch.optim.SGD(g_vars, lr)
         self.d_optim = torch.optim.RMSprop(d_vars, lr)
         #self.g_optim = torch.optim.RMSprop(g_vars, lr)
-        self.g_optim = optimizers.MSEBoundOptimizer(self.model.g_model, lr)
+        self.g_optim = optimizers.TRRmsProp(self._g_opt_loss, g_vars, lr)
         #self.d_optim = optimizers.RMSpropEx(d_vars, lr)
         #self.g_optim = optimizers.RMSpropEx(g_vars, lr/3.)
 
-    def get_d_loss(self, z, img, gen_samples):
-        if self.loss.allows_separate_d:
-            #real
-            real_features = self.model.d_model.features(img)
-            real_d = self.model.d_model.fc(real_features)
-            d_real_loss = self.loss.get_d_real(real_d)
-            d_real_loss.backward()
+    def process_d_batch(self):
+        b = self.batch.get()
+        img = b['images'].to(self.model.device)
 
-            #fake
-            fake_features = self.model.d_model.features(gen_samples)
-            fake_d = self.model.d_model.fc(fake_features)
-            d_fake_loss = self.loss.get_d_fake(fake_d)
-            d_fake_loss.backward()
+        real_d = self.model.d_model(img)
+        d_real_loss = self.loss.get_d_real(real_d)
+        d_real_loss.backward()
 
-            d_loss = d_real_loss + d_fake_loss
-        else:
-            real_features = self.model.d_model.features(img)
-            real_d = self.model.d_model.fc(real_features)
+        with torch.no_grad():
+            z = b['z'].to(self.model.device)
+            gen_samples = self.model.g_model(z)
 
-            fake_features = self.model.d_model.features(gen_samples)
-            fake_d = self.model.d_model.fc(fake_features)
+        #fake
+        fake_d = self.model.d_model(gen_samples)
+        d_fake_loss = self.loss.get_d_fake(fake_d)
+        d_fake_loss.backward()
 
-            d_loss = self.loss.get_d(real_d, fake_d)
-            d_loss.backward()
+        d_loss = d_real_loss + d_fake_loss
 
-        return d_loss
+        #regularizer
+        reg = self._get_reg(img, gen_samples)
+        if reg is not None:
+            d_reg = float(self.lambd) * reg
+            d_reg.backward()
+        return d_loss, reg
 
     def update_d(self, n_steps):
         self.model.d_model.requires_grad(True)
@@ -108,26 +106,12 @@ class Trainer(object):
             #update gradient
             m = float(self.sub_batches)
             for i in range(self.sub_batches):
-                b = self.batch.get()
+                d_loss, d_reg = self.process_d_batch()
+                d_loss /= m
+                d_reg /= m
 
-                z = b['z'].to(self.model.device)
-                img = b['images'].to(self.model.device)
-
-                with torch.no_grad():
-                    gen_samples = self.model.g_model(z)
-
-                d_loss = self.get_d_loss(z, img, gen_samples) / m
-
-                err_D += (d_loss).data.cpu().numpy()
-
-                reg = self._get_reg(img, gen_samples)
-                if reg is not None:
-                    reg /= m
-                    d_reg = float(self.lambd) * reg
-                    d_reg.backward()
-
-                    err_S += np.sqrt(reg.data.cpu().numpy())
-                    del d_reg
+                err_D += d_loss.data.cpu().numpy()
+                err_S += np.sqrt(d_reg.data.cpu().numpy())
 
             self.d_optim.step()
 
@@ -136,35 +120,27 @@ class Trainer(object):
         err_S /= M
         return err_D, err_S
 
-    def get_g_loss(self, z, img, gen_samples):
-        if False:
-            with torch.no_grad():
-                real_features = self.model.d_model.features(img)
-                real_d = self.model.d_model.fc(real_features)
+    def process_g_batch(self):
+        z = self.batch.get_z().to(self.model.device)
+        gen_samples = self.model.g_model(z)
 
-            fake_features = self.model.d_model.features(gen_samples)
-            fake_d = self.model.d_model.fc(fake_features)
+        fake_d = self.model.d_model(gen_samples)
+        g_loss = self.loss.get_g(fake_d)
+        g_loss.backward()
 
-            g_loss = self.loss.get_g(real_d, fake_d)
-
-            k = mmd.kernels.GaussKernel([0.01, 0.1, 1., 5., 10.])
-            reg = k.get_score(real_features, fake_features)
-
-            print ('MMD = %.8f'%(float(reg)))
-
-            loss = g_loss + reg
-            loss.backward()
-        else:
-            if self.loss.allows_separate_d:
-                real_d = None
-            else:
-                with torch.no_grad():
-                    real_d = self.model.d_model(img)
-
-            fake_d = self.model.d_model(gen_samples)
-            g_loss = self.loss.get_g(real_d, fake_d)
-            g_loss.backward()
+        if hasattr(self.g_optim, 'z_lst'):
+            self.g_optim.z_lst.append((z, gen_samples))
         return g_loss
+
+    def _g_opt_loss(self, z_list):
+        r = 0.
+        for z, samples in z_list:
+            gen_samples = self.model.g_model(z)
+            r += (samples - gen_samples).abs().mean()
+
+        r /= float(len(z_list))
+        r = r.view(1, ).data.cpu().numpy()[0]
+        return r
 
     def update_g(self, n_steps):
         self.model.d_model.requires_grad(False)
@@ -176,30 +152,32 @@ class Trainer(object):
             self.g_optim.zero_grad()
 
             #update gradient#
-            z_lst = []
             m = float(self.sub_batches)
             for i in range(self.sub_batches):
-                #print ('update_g')
-                b = self.batch.get()
+                g_loss = self.process_g_batch()
+                g_loss /= m
 
-                z = b['z'].to(self.model.device)
-                img = b['images'].to(self.model.device)
-                gen_samples = self.model.g_model(z)
-
-                g_loss = self.get_g_loss(z, img, gen_samples) / m
                 err_G += g_loss.data.cpu().numpy()
 
-                z_lst.append((z, gen_samples))
-
-            self.g_optim.step(z_lst)
+            self.g_optim.step()
 
         err_G /= float(n_steps)
         return err_G
 
     def update(self, d_steps, g_steps):
         self.model.train()
-        errD, s = self.update_d(d_steps)
+
+        #train D
+        for _ in range(100):
+            errD, s = self.update_d(d_steps)
+            if errD < self.loss.zero_level:
+                break
+        if errD > self.loss.zero_level:
+            raise RuntimeError('Discriminator cannot distinguish')
+
+        #train G
         errG = self.update_g(g_steps)
+
         return errD, s, errG
 
     def sample(self, z):

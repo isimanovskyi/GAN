@@ -31,38 +31,36 @@ class Vector(object):
 
 
 
-class MSEBoundOptimizer(object):
-    def __init__(self, model, lr=1e-2, alpha=0.99, delta=0.2, eps=1e-8):
-        self.model = model
+class TRRmsProp(object):
+    def __init__(self, loss, params, lr, alpha=0.99, delta=0.2, eps=1e-8):
         self.delta = delta
         self.epsilon = eps
-        self.opt = torch.optim.RMSprop(model.parameters(), lr, alpha, eps)
+        self.opt = torch.optim.RMSprop(params, lr, alpha, eps)
+        self.loss = loss
 
     def zero_grad(self):
+        self.z_lst = []
         self.opt.zero_grad()
 
-    def step(self, z_list, closure=None):
+    def step(self, closure=None):
         with torch.no_grad():
             old_params = {}
-            for name, params in self.model.named_parameters():
-                old_params[name] = params.clone().detach()
+            for group in self.opt.param_groups:
+                for p in group['params']:
+                    old_params[p] = p.clone()
 
             res = self.opt.step(closure)
 
-            r = 0.
-            for z, samples in z_list:
-                gen_samples = self.model(z)
-                r += (samples - gen_samples).abs().mean()
-
-            r = r.view(1, ).data.cpu().numpy()[0]
+            r = self.loss(self.z_lst)
 
             alpha = self.delta / (r + self.epsilon)
             beta = np.clip(alpha, 0., 1.)
             print (beta, alpha, r)
 
             # update model
-            for name, params in self.model.named_parameters():
-                params.copy_(beta * params + (1. - beta) * old_params[name])
+            for group in self.opt.param_groups:
+                for p in group['params']:
+                    p.copy_(beta * p + (1. - beta) * old_params[p])
 
             return res
 
