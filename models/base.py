@@ -4,6 +4,7 @@ import os
 import sys, inspect
 import functools
 import utils
+import copy
 
 def get_axis_same_padding(kernel_size):
     if kernel_size % 2 == 0:
@@ -310,7 +311,7 @@ class Discriminator(torch.nn.Module):
             p.requires_grad = req_grad
 
 class ModelBase(object):
-    def __init__(self, device, z_shape, image_shape, **kwargs):
+    def __init__(self, device, z_shape, image_shape, use_av_gen = False, **kwargs):
         self.device = device
 
         if 'g_tanh' in kwargs.keys():
@@ -336,6 +337,10 @@ class ModelBase(object):
         self.g_model.apply(functools.partial(self.init_weights, sigma=0.01))
         self.g_model.to(device = device)
 
+        if use_av_gen:
+            self.av_g_model = copy.deepcopy(self.g_model)
+            self.av_g_model.requires_grad(False)
+
     def init_weights(self, m, sigma):
         if isinstance(m, torch.nn.Linear) \
             or isinstance(m, torch.nn.Conv2d) \
@@ -347,6 +352,17 @@ class ModelBase(object):
     def get_weights(self):
         return self.d_model.parameters(), self.g_model.parameters()
 
+    def update_g_av(self, beta = 0.999):
+        if not hasattr(self, 'av_g_model'):
+            return
+
+        param_dict_src = dict(self.g_model.named_parameters())
+
+        for p_name, p_tgt in self.av_g_model.named_parameters():
+            p_src = param_dict_src[p_name]
+            assert(p_src is not p_tgt)
+            p_tgt.copy_(beta*p_tgt + (1. - beta)*p_src)
+
     def _load_weights(self, model, file):
         model.load_state_dict(torch.load(file, map_location=lambda storage, loc: storage))
 
@@ -356,26 +372,36 @@ class ModelBase(object):
     def get_nn_files(self, path):
         d_file = os.path.join(path, 'net_d.npz')
         g_file = os.path.join(path, 'net_g.npz')
-        return d_file, g_file
+        g_av_file = os.path.join(path, 'net_g_av.npz')
+        return d_file, g_file, g_av_file
 
     def save_checkpoint(self, path):
         if not os.path.exists(path):
             os.makedirs(path)
 
-        d_file, g_file = self.get_nn_files(path)
+        d_file, g_file, g_av_file = self.get_nn_files(path)
 
         self._save_weights(self.d_model, d_file)
         self._save_weights(self.g_model, g_file)
+        if hasattr(self, 'av_g_model'):
+            self._save_weights(self.av_g_model, g_av_file)
 
     def load_checkpoint(self, path):
         if not os.path.exists(path):
             return False
 
-        d_file, g_file = self.get_nn_files(path)
+        d_file, g_file, g_av_file = self.get_nn_files(path)
 
         try:
             self._load_weights(self.d_model, d_file)
             self._load_weights(self.g_model, g_file)
+
+            try:
+                if hasattr(self, 'av_g_model'):
+                    self._load_weights(self.av_g_model, g_av_file)
+            except Exception as e:
+                self.av_g_model = copy.deepcopy(self.g_model)
+                self.av_g_model.requires_grad(False)
             return True
 
         except Exception as e:

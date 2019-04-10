@@ -55,19 +55,17 @@ def main(_):
     device = utils.get_torch_device()
 
     #model
-    nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, image_shape=image_shape,z_shape=z_shape)
+    nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, image_shape=image_shape,z_shape=z_shape, use_av_gen=True)
+    if nn_model.load_checkpoint(FLAGS.checkpoint_dir):
+        logger.info('[*] checkpoint loaded')
+    else:
+        logger.info('[*] checkpoint not found')
 
     #lambd = lambda_scheduler.Constant(0.1)
     lambd = lambda_scheduler.ThresholdAnnealing(1000., min_switch_step=FLAGS.lambda_switch_steps)
     trainer = Trainer(model=nn_model, batch=batch, loss=gan_loss.js_loss(), lr=FLAGS.learning_rate,
                       reg='gp', lambd=lambd)
     trainer.sub_batches = FLAGS.batch_per_update
-
-    # load the latest checkpoints
-    if nn_model.load_checkpoint(FLAGS.checkpoint_dir):
-        logger.info('[*] checkpoint loaded')
-    else:
-        logger.info('[*] checkpoint not found')
 
     ##========================= LOAD CONTEXT ================================##
     context_path = os.path.join(FLAGS.checkpoint_dir, 'context.npz')

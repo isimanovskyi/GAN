@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import optimizers
 
-
 class Trainer(object):
     def __init__(self, model, batch, loss, lr, reg, lambd):
         self.model = model
@@ -161,6 +160,8 @@ class Trainer(object):
 
             self.g_optim.step()
 
+        self.model.update_g_av()
+
         err_G /= float(n_steps)
         return err_G
 
@@ -187,9 +188,13 @@ class Trainer(object):
         z = torch.tensor(z, device = self.model.device)
 
         with torch.no_grad():
-            self.model.g_model.eval()
-            gen_samples = self.model.g_model(z)
-            self.model.g_model.train()
+            if hasattr(self.model, 'av_g_model'):
+                self.model.av_g_model.eval()
+                gen_samples = self.model.av_g_model(z)
+            else:
+                self.model.g_model.eval()
+                gen_samples = self.model.g_model(z)
+                self.model.g_model.train()
 
             gen_samples = torch.clamp(gen_samples, -1., 1.)
             res = gen_samples.data.cpu().numpy()

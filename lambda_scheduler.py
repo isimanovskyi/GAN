@@ -32,7 +32,7 @@ class ThresholdAnnealing(object):
         self.step_hit = 0
 
     def get_average(self):
-        t = float(self.step)
+        t = max(float(self.step), 1.)
         return self.errD_av / (1. - np.power(self.beta, t))
 
     def update(self, errD):
