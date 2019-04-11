@@ -114,7 +114,7 @@ def main(_):
     #        print ("[%2d/%2d]" % (i, n_pretrain_steps))
     #print('Done')
 
-    bLambdaSwitched = False
+    bLambdaSwitched = True
 
     for epoch in range(FLAGS.epoch):
         for b in range(batches_per_epoch):
@@ -127,6 +127,7 @@ def main(_):
             #    d_iter = 5
             if bLambdaSwitched:
                 #if lambda was switched we want to keep discriminator optimal
+                logger.info('[!] Warming up discriminator')
                 d_iter = 25
             else:
                 d_iter = 1
