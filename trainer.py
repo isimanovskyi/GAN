@@ -62,7 +62,7 @@ class Trainer(object):
         #self.g_optim = torch.optim.SGD(g_vars, lr)
         self.d_optim = torch.optim.RMSprop(d_vars, lr)
         #self.g_optim = torch.optim.RMSprop(g_vars, lr)
-        self.g_optim = optimizers.TRRmsProp(self._g_opt_loss, g_vars, lr)
+        self.g_optim = optimizers.TRRmsProp(self._g_opt_loss, torch.optim.RMSprop(g_vars, lr/2, weight_decay=1e-3), delta=0.5, verbose=True)
         #self.d_optim = optimizers.RMSpropEx(d_vars, lr)
         #self.g_optim = optimizers.RMSpropEx(g_vars, lr/3.)
 
@@ -169,17 +169,19 @@ class Trainer(object):
         self.model.train()
 
         #train D
+        b_too_good_D = False
         for _ in range(100):
             errD, s = self.update_d(d_steps)
             if errD < self.loss.zero_level:
                 break
+            b_too_good_D = True
         if errD > self.loss.zero_level:
             raise RuntimeError('Discriminator cannot distinguish')
 
         #train G
         errG = self.update_g(g_steps)
 
-        return errD, s, errG
+        return errD, s, errG, b_too_good_D
 
     def sample(self, z):
         self.model.d_model.requires_grad(False)

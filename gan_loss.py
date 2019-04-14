@@ -31,6 +31,10 @@ class loss_base(object):
     def zero_level(self):
         raise NotImplemented('This is abstract method')
 
+    @property
+    def lambda_switch_level(self):
+        raise NotImplemented('This is abstract method')
+
 class pearson_loss(loss_base):
     def __init__(self, **kwargs):
         super(pearson_loss, self).__init__(**kwargs)
@@ -48,6 +52,10 @@ class pearson_loss(loss_base):
     def zero_level(self):
         return -0.5
 
+    @property
+    def lambda_switch_level(self):
+        raise NotImplemented('This is abstract method')
+
 class crossentropy_loss(loss_base):
     def __init__(self, **kwargs):
         super(crossentropy_loss, self).__init__(**kwargs)
@@ -61,6 +69,10 @@ class crossentropy_loss(loss_base):
     @property
     def zero_level(self):
         return 1.3863
+
+    @property
+    def lambda_switch_level(self):
+        return 1.1
     
 class js_loss(crossentropy_loss):
     def __init__(self, **kwargs):
@@ -99,6 +111,10 @@ class wasserstein_loss(loss_base):
     @property
     def zero_level(self):
         return 0.
+
+    @property
+    def lambda_switch_level(self):
+        return -5.
 
 class mmd_loss(loss_base):
     def __init__(self, **kwargs):

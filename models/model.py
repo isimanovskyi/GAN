@@ -125,7 +125,7 @@ class ResidualModel(models.base.ModelBase):
         net.add_Activation(self.d_act)
 
         net.add_Flatten()
-        net.add_Dense(1)
+        net.add_Dense(1, bias=False)
 
         return net.get()
 
@@ -345,10 +345,10 @@ class MMDModel(models.base.ModelBase):
             features.add_Residual(64*k, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
 
         features.add_Flatten()
-        features.add_Dense(n_features)
+        #features.add_Dense(n_features)
 
         #linear discriminator
         fc = models.base.SequentialContainer(features.input_shape)
-        fc.add_Dense(1)
+        fc.add_Dense(1, bias=False)
 
         return models.base.Discriminator(features.get(), fc.get())

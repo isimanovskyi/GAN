@@ -233,12 +233,12 @@ class SequentialContainer(object):
 
         self.input_shape = (channels, h, w)
 
-    def add_Dense(self, features):
+    def add_Dense(self, features, bias=True):
         if len(self.input_shape) != 1:
             raise ValueError('Input is not flat')
 
         #add layer
-        self.layers.append(torch.nn.Linear(self.input_shape[0], features))
+        self.layers.append(torch.nn.Linear(self.input_shape[0], features, bias))
 
         #output shape
         self.input_shape = (features,)

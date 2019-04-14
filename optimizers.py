@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import logger
 
 class Vector(object):
     def __init__(self, v):
@@ -32,11 +33,12 @@ class Vector(object):
 
 
 class TRRmsProp(object):
-    def __init__(self, loss, params, lr, alpha=0.99, delta=0.2, eps=1e-8):
+    def __init__(self, loss, opt, delta=0.2, verbose=False):
         self.delta = delta
-        self.epsilon = eps
-        self.opt = torch.optim.RMSprop(params, lr, alpha, eps)
+        self.epsilon = 1e-12
+        self.opt = opt
         self.loss = loss
+        self.verbose=verbose
 
     def zero_grad(self):
         self.z_lst = []
@@ -53,9 +55,14 @@ class TRRmsProp(object):
 
             r = self.loss(self.z_lst)
 
+            #get multiplier
             alpha = self.delta / (r + self.epsilon)
+            if alpha >= 1:
+                return res
+
             beta = np.clip(alpha, 0., 1.)
-            print (beta, alpha, r)
+            if self.verbose:
+                logger.info('TRRmsProp: beta=%.8f, alpha=%.8f, r=%.8f' % (beta, alpha, r))
 
             # update model
             for group in self.opt.param_groups:

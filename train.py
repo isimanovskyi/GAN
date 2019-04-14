@@ -30,7 +30,7 @@ utils.flags.DEFINE_string("sample_dir", "samples", "Directory name to save the i
 utils.flags.DEFINE_string("log_dir", "log", "Directory name to save the logs [log]")
 utils.flags.DEFINE_integer("z_dim", 100, "Dimensions of generator input [100]")
 utils.flags.DEFINE_string("model_name", "Model", "Name of the model [Model]")
-utils.flags.DEFINE_integer("lambda_switch_steps", 500, "Name of steps to wait before annealing lambda")
+utils.flags.DEFINE_integer("lambda_switch_steps", 100, "Name of steps to wait before annealing lambda")
 FLAGS = utils.flags.FLAGS()
 
 
@@ -55,15 +55,16 @@ def main(_):
     device = utils.get_torch_device()
 
     #model
-    nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, image_shape=image_shape,z_shape=z_shape, use_av_gen=True)
+    nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, image_shape=image_shape,z_shape=z_shape, use_av_gen=False)
     if nn_model.load_checkpoint(FLAGS.checkpoint_dir):
         logger.info('[*] checkpoint loaded')
     else:
         logger.info('[*] checkpoint not found')
 
+    loss = gan_loss.js_loss()
     #lambd = lambda_scheduler.Constant(0.1)
-    lambd = lambda_scheduler.ThresholdAnnealing(1000., min_switch_step=FLAGS.lambda_switch_steps)
-    trainer = Trainer(model=nn_model, batch=batch, loss=gan_loss.js_loss(), lr=FLAGS.learning_rate,
+    lambd = lambda_scheduler.ThresholdAnnealing(1000., threshold=loss.lambda_switch_level, min_switch_step=FLAGS.lambda_switch_steps, verbose=True)
+    trainer = Trainer(model=nn_model, batch=batch, loss=loss, lr=FLAGS.learning_rate,
                       reg='gp', lambd=lambd)
     trainer.sub_batches = FLAGS.batch_per_update
 
@@ -115,6 +116,7 @@ def main(_):
     #print('Done')
 
     bLambdaSwitched = True
+    n_too_good_d = []
 
     for epoch in range(FLAGS.epoch):
         for b in range(batches_per_epoch):
@@ -132,8 +134,16 @@ def main(_):
             else:
                 d_iter = 1
 #
-            errD, s, errG = trainer.update(d_iter, 1)
+            errD, s, errG, b_too_good_D = trainer.update(d_iter, 1)
+
+            #updating lambda
+            n_too_good_d.append(b_too_good_D)
+            if len(n_too_good_d) > 20:
+                del n_too_good_d[0]               
+                
             bLambdaSwitched = lambd.update(errD)
+            if not bLambdaSwitched and sum(n_too_good_d) > 10:
+                bLambdaSwitched = lambd.switch()
 
             end_time = time.time()
 
