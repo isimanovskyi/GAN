@@ -32,7 +32,7 @@ class Vector(object):
 
 
 
-class TRRmsProp(object):
+class TROptimizer(object):
     def __init__(self, loss, opt, delta=0.2, verbose=False):
         self.delta = delta
         self.epsilon = 1e-12

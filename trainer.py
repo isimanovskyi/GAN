@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import optimizers
+import utils
 
 class Trainer(object):
     def __init__(self, model, batch, loss, lr, reg, lambd):
@@ -55,16 +56,36 @@ class Trainer(object):
         else:
             return None
 
+    def _lr_warmup_schedule(self, epoch):
+        schedule = {0: 0.1, 100: 0.25, 200: 0.5, 300: 0.75, 400: 1.}
+
+        best_step = None
+        lr_mult = 0.
+        for s, lr in utils.get_items(schedule):
+            if s > epoch:
+                continue
+
+            if best_step is not None and s < best_step:
+                continue
+
+            best_step = s
+            lr_mult = lr
+
+        return lr_mult
+
+    def update_lr(self):
+        self.d_scheduler.step()
+        self.g_scheduler.step()
+
     def _init_optimizer(self, lr):
         d_vars, g_vars = self.model.get_weights()
 
-        #self.d_optim = torch.optim.SGD(d_vars, lr)
-        #self.g_optim = torch.optim.SGD(g_vars, lr)
         self.d_optim = torch.optim.RMSprop(d_vars, lr)
         #self.g_optim = torch.optim.RMSprop(g_vars, lr)
-        self.g_optim = optimizers.TRRmsProp(self._g_opt_loss, torch.optim.RMSprop(g_vars, lr/2, weight_decay=1e-3), delta=0.5, verbose=True)
-        #self.d_optim = optimizers.RMSpropEx(d_vars, lr)
-        #self.g_optim = optimizers.RMSpropEx(g_vars, lr/3.)
+        self.g_optim = optimizers.TROptimizer(self._g_opt_loss, torch.optim.RMSprop(g_vars, lr/2, weight_decay=1e-3), delta=0.5, verbose=True)
+
+        self.d_scheduler = torch.optim.lr_scheduler.LambdaLR(self.d_optim, self._lr_warmup_schedule)
+        self.g_scheduler = torch.optim.lr_scheduler.LambdaLR(self.g_optim.opt, self._lr_warmup_schedule)
 
     def process_d_batch(self):
         b = self.batch.get()
@@ -181,6 +202,8 @@ class Trainer(object):
         #train G
         errG = self.update_g(g_steps)
 
+        #update lr
+        self.update_lr()
         return errD, s, errG, b_too_good_D
 
     def sample(self, z):
