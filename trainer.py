@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import optimizers
 import utils
+import logger
 
 class Trainer(object):
     def __init__(self, model, batch, loss, lr, reg, lambd):
@@ -82,7 +83,7 @@ class Trainer(object):
 
         self.d_optim = torch.optim.RMSprop(d_vars, lr)
         #self.g_optim = torch.optim.RMSprop(g_vars, lr)
-        self.g_optim = optimizers.TROptimizer(self._g_opt_loss, torch.optim.RMSprop(g_vars, lr/2, weight_decay=1e-3), delta=0.5, verbose=True)
+        self.g_optim = optimizers.TROptimizer(self._g_opt_loss, torch.optim.RMSprop(g_vars, lr/2, weight_decay=0.), delta=0.5, verbose=True)
 
         self.d_scheduler = torch.optim.lr_scheduler.LambdaLR(self.d_optim, self._lr_warmup_schedule)
         self.g_scheduler = torch.optim.lr_scheduler.LambdaLR(self.g_optim.opt, self._lr_warmup_schedule)
@@ -119,8 +120,7 @@ class Trainer(object):
 
         err_D = 0.
         err_S = 0.
-        for _ in range(n_steps):
-            #print ('update_d')
+        for it in range(n_steps):
             self.d_optim.zero_grad()
 
             #update gradient
@@ -195,7 +195,10 @@ class Trainer(object):
             errD, s = self.update_d(d_steps)
             if errD < self.loss.zero_level:
                 break
+
             b_too_good_D = True
+            logger.info('[!] Retraining D: %.8f'%(errD))
+
         if errD > self.loss.zero_level:
             raise RuntimeError('Discriminator cannot distinguish')
 

@@ -330,7 +330,7 @@ class ModelBase(object):
             self.d_act = torch.nn.LeakyReLU(0.2)
 
         self.d_model = self._get_discriminator(image_shape=image_shape)
-        self.d_model.apply(functools.partial(self.init_weights, sigma=0.01))
+        self.d_model.apply(functools.partial(self.init_weights, sigma=0.005))
         self.d_model.to(device = device)
 
         self.g_model = self._get_generator(z_shape=z_shape, image_shape=image_shape)

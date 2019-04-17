@@ -61,6 +61,8 @@ class ThresholdAnnealing(object):
 
             if prev_value < self.threshold:
                 self.step_hit = self.step
+        else:
+            self.step_hit = self.step
 
         if self.verbose:
             logger.info("lambda: %.8f, %d, %d" % (self.get_average(), self.step_hit, self.step_switched))
