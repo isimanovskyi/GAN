@@ -11,6 +11,8 @@ utils.flags.DEFINE_integer("z_dim", 100, "Dimensions of generator input [100]")
 utils.flags.DEFINE_string("model_name", "Model", "Name of the model [Model]")
 utils.flags.DEFINE_integer("output_size", 64, "The size of the output images to produce [64]")
 utils.flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
+utils.flags.DEFINE_boolean('use_averaged_gen', False, 'If use averaged generator for sampling')
+utils.flags.DEFINE_integer('n_samples', 1, 'Number of batches')
 FLAGS = utils.flags.FLAGS()
 
 utils.exists_or_mkdir(FLAGS.sample_dir)
@@ -20,16 +22,18 @@ image_size = (FLAGS.output_size, FLAGS.output_size)
 image_shape = (3,) + image_size
 
 device = utils.get_torch_device()
-nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, image_shape=image_shape,z_shape=z_shape)
+nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, image_shape=image_shape,z_shape=z_shape, use_av_gen=FLAGS.use_averaged_gen)
 if not nn_model.load_checkpoint(FLAGS.checkpoint_dir):
     raise RuntimeError('Checkpoint not found')
 
 trainer = Trainer(model=nn_model, batch=None, loss=None, lr=0., reg=None, lambd=None)
 
-z = np.random.randn(FLAGS.sample_size, FLAGS.z_dim).astype(np.float32)
-img = trainer.sample(z)
-
-n = int(np.sqrt(FLAGS.sample_size))
 now = datetime.datetime.now()
-utils.save_images(img, [n, n], './{}/sample_{:02d}_{:02d}_{:02d}:{:02d}:{:02d}.png'.format(FLAGS.sample_dir, now.month, now.day, now.hour, now.minute, now.second))
+for i in range(FLAGS.n_samples):
+    z = np.random.randn(FLAGS.sample_size, FLAGS.z_dim).astype(np.float32)
+    img = trainer.sample(z)
+
+    n = int(np.sqrt(FLAGS.sample_size))
+    utils.save_images(img, [n, n], './{}/sample_{:02d}_{:02d}_{:02d}:{:02d}:{:02d}__{:d}.png'.format(FLAGS.sample_dir, now.month, now.day, now.hour, now.minute, now.second, i))
+
 logger.info("Sample done")

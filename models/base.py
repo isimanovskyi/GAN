@@ -291,6 +291,13 @@ class SequentialContainer(object):
     def add_Identity(self):
         self.layers.append(IdentityBlock())
 
+    def add_Upsample2d(self,scale_factor):
+        if len(self.input_shape) != 3:
+            raise ValueError('Input is not Convolutional')
+
+        self.layers.append(torch.nn.UpsamplingNearest2d(size=None, scale_factor=scale_factor))
+        self.input_shape = (self.input_shape[0], scale_factor*self.input_shape[1], scale_factor*self.input_shape[2])
+
     def get(self):
         return SequentialModel(*self.layers)
 

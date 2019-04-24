@@ -131,54 +131,45 @@ class ResidualModel(models.base.ModelBase):
 
 
 class DeepResidualModel(models.base.ModelBase):
-
-    def __init__(self, **kwargs):
-        super(DeepResidualModel, self).__init__(**kwargs)
-
     def _get_generator(self, z_shape, image_shape):
-        s16 = (int(image_shape[1] / 16), int(image_shape[2] / 16))
+        use_batch_norm = False
+        start_shape = 4
         gf_dim = 64  # Dimension of gen filters in first conv layer. [64]
-        kernel_size = (5, 5)
-        res_kernel_size = (3, 3)
+        k_size = (3,3)
+        n_residuals = 1
 
         net = models.base.SequentialContainer(z_shape)
 
-        net.add_Dense(gf_dim * 8 * s16[0] * s16[1])
-        net.add_Reshape((gf_dim * 8, s16[0], s16[1]))
+        n_blocks = np.int(np.log2(image_shape[1]) - 2)
+
+        k = 2 ** (n_blocks - 1)
+        dim = gf_dim * k
+        if dim > 1024:
+            dim = 1024
+        net.add_Dense(dim * start_shape * start_shape)
+        net.add_Reshape((dim, start_shape, start_shape))
         net.add_Activation(self.g_act)
 
-        net.add_Residual(gf_dim * 8, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Residual(gf_dim * 8, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Residual(gf_dim * 8, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Conv2DTranspose(gf_dim * 8, kernel_size=kernel_size, strides=(2, 2),
-                                padding=models.base.get_same_padding(kernel_size), output_padding=(1, 1))
-        net.add_Activation(self.g_act)
+        for n_block in range(n_blocks):
+            k = 2**(n_blocks - 1 - n_block)
+            dim = gf_dim * k
+            if dim > 1024:
+                dim = 1024
+            #
+            for _ in range(n_residuals):
+                net.add_Residual(dim, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
 
-        net.add_Residual(gf_dim * 4, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Residual(gf_dim * 4, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Residual(gf_dim * 4, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Conv2DTranspose(gf_dim * 4, kernel_size=kernel_size, strides=(2, 2),
-                                padding=models.base.get_same_padding(kernel_size), output_padding=(1, 1))
-        net.add_Activation(self.g_act)
+            net.add_Conv2DTranspose(dim, kernel_size=k_size, strides=(2, 2),
+                                    padding=models.base.get_same_padding(k_size), output_padding=(1, 1))
+            #net.add_Upsample2d(2)
+            if use_batch_norm:
+                net.add_BatchNorm()
+            net.add_Activation(self.g_act)
 
-        net.add_Residual(gf_dim * 2, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Residual(gf_dim * 2, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Residual(gf_dim * 2, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Conv2DTranspose(gf_dim * 2, kernel_size=kernel_size, strides=(2, 2),
-                                padding=models.base.get_same_padding(kernel_size), output_padding=(1, 1))
-        net.add_Activation(self.g_act)
+        for _ in range(n_residuals):
+            net.add_Residual(gf_dim, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
 
-        net.add_Residual(gf_dim, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Residual(gf_dim, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Residual(gf_dim, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Conv2DTranspose(gf_dim, kernel_size=kernel_size, strides=(2, 2),
-                                padding=models.base.get_same_padding(kernel_size), output_padding=(1, 1))
-        net.add_Activation(self.g_act)
-
-        net.add_Residual(16, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Residual(16, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Residual(16, kernel_size=res_kernel_size, activation=self.g_act)
-        net.add_Conv2D(3, kernel_size=kernel_size, strides=(1, 1), padding=models.base.get_same_padding(kernel_size))
+        net.add_Conv2D(3, kernel_size=k_size, strides=(1, 1), padding=models.base.get_same_padding(k_size))
 
         if self.g_tanh:
             net.add_Activation(torch.nn.Tanh())
@@ -186,47 +177,35 @@ class DeepResidualModel(models.base.ModelBase):
         return net.get()
 
     def _get_discriminator(self, image_shape):
-        df_dim = 64  # Dimension of discrim filters in first conv layer. [64]
-        kernel_size = (5, 5)
-        res_kernel_size = (3, 3)
+        use_batch_norm = False
+        kernel_size = (3,3)
+        n_residuals = 1
 
-        net = models.base.SequentialContainer(image_shape)
+        #features
+        features = models.base.SequentialContainer(image_shape)
 
-        net.add_Conv2D(df_dim, kernel_size=(5, 5), strides=(2, 2), padding=models.base.get_same_padding((5, 5)))
-        net.add_Activation(self.d_act)
+        n_blocks = np.int(np.log2(image_shape[1]) - 2)
+        for n_block in range(n_blocks):
+            k = 2**n_block
+            dim = 64*k
+            if dim > 1024:
+                dim = 1024
+            #
+            features.add_Conv2D(dim, kernel_size=kernel_size, strides=(2, 2),
+                                padding=models.base.get_same_padding(kernel_size))
+            if use_batch_norm:
+                features.add_BatchNorm()
+            features.add_Activation(self.d_act)
 
-        net.add_Residual(df_dim, kernel_size=res_kernel_size, activation=self.d_act)
-        net.add_Residual(df_dim, kernel_size=res_kernel_size, activation=self.d_act)
-        net.add_Residual(df_dim, kernel_size=res_kernel_size, activation=self.d_act)
+            for _ in range(n_residuals):
+                features.add_Residual(dim, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
 
-        net.add_Conv2D(df_dim * 2, kernel_size=kernel_size, strides=(2, 2),
-                       padding=models.base.get_same_padding(kernel_size))
-        net.add_Activation(self.d_act)
+        features.add_Flatten()
 
-        net.add_Residual(df_dim * 2, kernel_size=res_kernel_size, activation=self.d_act)
-        net.add_Residual(df_dim * 2, kernel_size=res_kernel_size, activation=self.d_act)
-        net.add_Residual(df_dim * 2, kernel_size=res_kernel_size, activation=self.d_act)
-
-        net.add_Conv2D(df_dim * 4, kernel_size=kernel_size, strides=(2, 2),
-                       padding=models.base.get_same_padding(kernel_size))
-        net.add_Activation(self.d_act)
-
-        net.add_Residual(df_dim * 4, kernel_size=res_kernel_size, activation=self.d_act)
-        net.add_Residual(df_dim * 4, kernel_size=res_kernel_size, activation=self.d_act)
-        net.add_Residual(df_dim * 4, kernel_size=res_kernel_size, activation=self.d_act)
-
-        net.add_Conv2D(df_dim * 8, kernel_size=kernel_size, strides=(2, 2),
-                       padding=models.base.get_same_padding(kernel_size))
-        net.add_Activation(self.d_act)
-
-        net.add_Residual(df_dim * 8, kernel_size=res_kernel_size, activation=self.d_act)
-        net.add_Residual(df_dim * 8, kernel_size=res_kernel_size, activation=self.d_act)
-        net.add_Residual(df_dim * 8, kernel_size=res_kernel_size, activation=self.d_act)
-
-        net.add_Flatten()
-        net.add_Dense(1)
-
-        return net.get()
+        #linear discriminator
+        fc = models.base.SequentialContainer(features.input_shape)
+        fc.add_Dense(1, bias=False)
+        return models.base.Discriminator(features.get(), fc.get())
 
 class MLPModel(models.base.ModelBase):
     def __init__(self, **kwargs):
@@ -288,6 +267,7 @@ class MMDModel(models.base.ModelBase):
         start_shape = 4
         gf_dim = 64  # Dimension of gen filters in first conv layer. [64]
         k_size = (3,3)
+        n_residuals = 1
 
         net = models.base.SequentialContainer(z_shape)
 
@@ -301,9 +281,8 @@ class MMDModel(models.base.ModelBase):
         for n_block in range(n_blocks):
             k = 2**(n_blocks - 1 - n_block)
             #
-            net.add_Residual(gf_dim * k, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
-            net.add_Residual(gf_dim * k, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
-            net.add_Residual(gf_dim * k, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
+            for _ in range(n_residuals):
+                net.add_Residual(gf_dim * k, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
 
             net.add_Conv2DTranspose(gf_dim * k, kernel_size=k_size, strides=(2, 2),
                                     padding=models.base.get_same_padding(k_size), output_padding=(1, 1))
@@ -311,9 +290,8 @@ class MMDModel(models.base.ModelBase):
                 net.add_BatchNorm()
             net.add_Activation(self.g_act)
 
-        net.add_Residual(16, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
-        net.add_Residual(16, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
-        net.add_Residual(16, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
+        for _ in range(n_residuals):
+            net.add_Residual(16, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
 
         net.add_Conv2D(3, kernel_size=k_size, strides=(1, 1), padding=models.base.get_same_padding(k_size))
 
@@ -325,7 +303,7 @@ class MMDModel(models.base.ModelBase):
     def _get_discriminator(self, image_shape):
         use_batch_norm = False
         kernel_size = (3,3)
-        n_features = 100
+        n_residuals = 1
 
         #features
         features = models.base.SequentialContainer(image_shape)
@@ -340,12 +318,10 @@ class MMDModel(models.base.ModelBase):
                 features.add_BatchNorm()
             features.add_Activation(self.d_act)
 
-            features.add_Residual(64*k, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
-            features.add_Residual(64*k, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
-            features.add_Residual(64*k, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+            for _ in range(n_residuals):
+                features.add_Residual(64*k, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
 
         features.add_Flatten()
-        #features.add_Dense(n_features)
 
         #linear discriminator
         fc = models.base.SequentialContainer(features.input_shape)
