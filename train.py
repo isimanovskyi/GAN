@@ -32,6 +32,7 @@ utils.flags.DEFINE_integer("z_dim", 100, "Dimensions of generator input [100]")
 utils.flags.DEFINE_string("model_name", "Model", "Name of the model [Model]")
 utils.flags.DEFINE_integer("lambda_switch_steps", 100, "Name of steps to wait before annealing lambda")
 utils.flags.DEFINE_boolean('use_averaged_gen', False, 'If use averaged generator for sampling')
+utils.flags.DEFINE_integer('n_discriminator', 1, 'Number of discriminator updates per generator')
 FLAGS = utils.flags.FLAGS()
 
 
@@ -133,7 +134,7 @@ def main(_):
                 logger.info('[!] Warming up discriminator')
                 d_iter = 25
             else:
-                d_iter = 1
+                d_iter = FLAGS.n_discriminator
 #
             errD, s, errG, b_too_good_D = trainer.update(d_iter, 1)
 
