@@ -136,7 +136,7 @@ class DeepResidualModel(models.base.ModelBase):
         start_shape = 4
         gf_dim = 64  # Dimension of gen filters in first conv layer. [64]
         k_size = (3,3)
-        n_residuals = 1
+        n_residuals = 3
         use_self_attn = True
         use_upsample = False
 
@@ -186,7 +186,7 @@ class DeepResidualModel(models.base.ModelBase):
     def _get_discriminator(self, image_shape):
         use_batch_norm = False
         kernel_size = (3,3)
-        n_residuals = 1
+        n_residuals = 3
         use_self_attn = True
 
         #features
