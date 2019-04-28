@@ -5,3 +5,4 @@ log/
 samples/
 .idea/
 *.pyc
+.vs
