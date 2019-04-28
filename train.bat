@@ -1,1 +1,0 @@
-python train.py --output_size 64 --sample_step 100 --sample_size 64 --learning_rate 1e-4 --epoch 10 --batch_size 12 --batch_per_update 1 --dataset celeba --data_folder ../data --model DeepResidualModel --use_averaged_gen false --n_discriminator 1

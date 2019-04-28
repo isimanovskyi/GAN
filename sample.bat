@@ -1,1 +1,0 @@
-python sample.py --output_size 64 --sample_size 64 --model MMDModel --use_averaged_gen True
