@@ -147,8 +147,6 @@ class SelfAttentionBlock(torch.nn.Module):
         self.value_conv = torch.nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.gamma = torch.nn.Parameter(torch.zeros(1))
 
-        self.softmax = torch.nn.Softmax(dim=-1)  #
-
     def forward(self, x):
         m_batchsize, C, width, height = x.size()
         proj_query = self.query_conv(x).view(m_batchsize, -1, width * height)
