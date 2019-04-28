@@ -153,6 +153,9 @@ class Trainer(object):
         return g_loss
 
     def _g_opt_loss(self, z_list):
+        if len(z_list) == 0:
+            return 0.
+
         r = 0.
         for z, samples in z_list:
             gen_samples = self.model.g_model(z)
