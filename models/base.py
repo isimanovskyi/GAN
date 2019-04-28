@@ -148,11 +148,13 @@ class SelfAttentionBlock(torch.nn.Module):
 
     def forward(self, x):
         m_batchsize, C, width, height = x.size()
-        proj_query = self.query_conv(x).view(m_batchsize, -1, width * height)
-        proj_query = torch.nn.functional.softmax(proj_query)  # otherwise weights drive to infinity
+        proj_query = self.query_conv(x).view(m_batchsize, -1)
+        proj_query = torch.nn.functional.softmax(proj_query, dim=1)  # otherwise weights drive to infinity
+        proj_query = proj_query.view(m_batchsize, -1, width * height)
 
-        proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)
-        proj_key = torch.nn.functional.softmax(proj_key)     #otherwise weights drive to infinity
+        proj_key = self.key_conv(x).view(m_batchsize, -1)
+        proj_key = torch.nn.functional.softmax(proj_key, dim=1)     #otherwise weights drive to infinity
+        proj_key = proj_key.view(m_batchsize, -1, width * height)
 
         proj_value = self.value_conv(x).view(m_batchsize, -1, width * height)
 
