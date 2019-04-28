@@ -140,7 +140,6 @@ class SelfAttentionBlock(torch.nn.Module):
     def __init__(self, in_dim, activation = None):
         super(SelfAttentionBlock, self).__init__()
         self.chanel_in = in_dim
-        self.activation = activation
 
         self.query_conv = torch.nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
         self.key_conv = torch.nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
@@ -150,16 +149,12 @@ class SelfAttentionBlock(torch.nn.Module):
     def forward(self, x):
         m_batchsize, C, width, height = x.size()
         proj_query = self.query_conv(x).view(m_batchsize, -1, width * height)
-        if self.activation is not None:
-            proj_query = self.activation(proj_query)
+        proj_query = torch.nn.functional.softmax(proj_query, dim=2)  # otherwise weights drive to infinity
 
         proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)
-        if self.activation is not None:
-            proj_key = self.activation(proj_key)
+        proj_key = torch.nn.functional.softmax(proj_key, dim=2)     #otherwise weights drive to infinity
 
         proj_value = self.value_conv(x).view(m_batchsize, -1, width * height)
-        if self.activation is not None:
-            proj_value = self.activation(proj_value)
 
         out = torch.bmm(proj_value, proj_key.permute(0,2,1))
         out = torch.bmm(out, proj_query)
@@ -281,14 +276,11 @@ class SequentialContainer(object):
     def add_NormBlock(self):
         self.layers.append(NormBlock())
 
-    def add_SelfAttention(self, activation=None):
+    def add_SelfAttention(self):
         if len(self.input_shape) != 3:
             raise ValueError('Input is not Convolutional')
 
-        if activation is not None:
-            activation = ActivationBlock(activation)
-
-        self.layers.append(SelfAttentionBlock(self.input_shape[0], activation))
+        self.layers.append(SelfAttentionBlock(self.input_shape[0]))
 
     def add_AvgPooling(self):
         if len(self.input_shape) != 3:

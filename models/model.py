@@ -162,7 +162,7 @@ class DeepResidualModel(models.base.ModelBase):
                 net.add_Residual(dim, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
 
             if use_self_attn:
-                net.add_SelfAttention(self.g_act)
+                net.add_SelfAttention()
 
             if use_upsample:
                 net.add_Upsample2d(2)
@@ -209,7 +209,7 @@ class DeepResidualModel(models.base.ModelBase):
                 features.add_Residual(dim, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
 
             if use_self_attn:
-                features.add_SelfAttention(self.d_act)
+                features.add_SelfAttention()
 
         features.add_Flatten()
 
