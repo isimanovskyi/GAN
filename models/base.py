@@ -135,32 +135,33 @@ class FlattenBlock(torch.nn.Module):
 
 
 class SelfAttentionBlock(torch.nn.Module):
-    def __init__(self, shape, activation):
-        super(SelfAttentionBlock, self).__init__()
-        self.shape = shape
-        self.activation = activation
-        self.n_filters = 4
+    """ Self attention Layer"""
 
-        self.conv_1 = torch.nn.Conv2d(in_channels=shape[0], out_channels=self.n_filters, kernel_size=1)
-        self.dense = torch.nn.Linear(self.n_filters*shape[1]*shape[2], shape[1]*shape[2]*self.n_filters)
-        self.conv_2 = torch.nn.Conv2d(in_channels=self.n_filters, out_channels=shape[0], kernel_size=1)
+    def __init__(self, in_dim, activation = None):
+        super(SelfAttentionBlock, self).__init__()
+        self.chanel_in = in_dim
+
+        self.query_conv = torch.nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
+        self.key_conv = torch.nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
+        self.value_conv = torch.nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
         self.gamma = torch.nn.Parameter(torch.zeros(1))
 
     def forward(self, x):
-        batch_size, C, width, height = x.size()
+        m_batchsize, C, width, height = x.size()
+        proj_query = self.query_conv(x).view(m_batchsize, -1, width * height)
+        proj_query = torch.nn.functional.softmax(proj_query, dim=2)  # otherwise weights drive to infinity
 
-        y = self.conv_1(x)
-        y = self.activation(y)
-        y = y.reshape((batch_size, self.shape[1]*self.shape[2]*self.n_filters))
+        proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)
+        proj_key = torch.nn.functional.softmax(proj_key, dim=2)     #otherwise weights drive to infinity
 
-        y = self.dense(y)
-        y = self.activation(y)
+        proj_value = self.value_conv(x).view(m_batchsize, -1, width * height)
 
-        y = y.reshape((batch_size, self.n_filters, self.shape[1], self.shape[2]))
-        y = self.conv_2(y)
-        y = self.activation(y)
+        out = torch.bmm(proj_value, proj_key.permute(0,2,1))
+        out = torch.bmm(out, proj_query)
 
-        out = self.gamma * y + (1. - self.gamma)*x
+        out = out.view(m_batchsize, C, width, height)
+
+        out = self.gamma * out + x
         return out
 
 class NormBlock(torch.nn.Module):
@@ -275,11 +276,11 @@ class SequentialContainer(object):
     def add_NormBlock(self):
         self.layers.append(NormBlock())
 
-    def add_SelfAttention(self, activation):
+    def add_SelfAttention(self):
         if len(self.input_shape) != 3:
             raise ValueError('Input is not Convolutional')
 
-        self.layers.append(SelfAttentionBlock(self.input_shape, ActivationBlock(activation)))
+        self.layers.append(SelfAttentionBlock(self.input_shape[0]))
 
     def add_AvgPooling(self):
         if len(self.input_shape) != 3:

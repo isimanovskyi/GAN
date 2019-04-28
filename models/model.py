@@ -137,6 +137,8 @@ class DeepResidualModel(models.base.ModelBase):
         gf_dim = 64  # Dimension of gen filters in first conv layer. [64]
         k_size = (3,3)
         n_residuals = 1
+        use_self_attn = True
+        use_upsample = False
 
         net = models.base.SequentialContainer(z_shape)
 
@@ -159,9 +161,14 @@ class DeepResidualModel(models.base.ModelBase):
             for _ in range(n_residuals):
                 net.add_Residual(dim, kernel_size=k_size, activation=self.g_act, use_batch_norm=use_batch_norm)
 
-            net.add_Conv2DTranspose(dim, kernel_size=k_size, strides=(2, 2),
-                                    padding=models.base.get_same_padding(k_size), output_padding=(1, 1))
-            #net.add_Upsample2d(2)
+            if use_self_attn:
+                net.add_SelfAttention()
+
+            if use_upsample:
+                net.add_Upsample2d(2)
+            else:
+                net.add_Conv2DTranspose(dim, kernel_size=k_size, strides=(2, 2),
+                                        padding=models.base.get_same_padding(k_size), output_padding=(1, 1))
             if use_batch_norm:
                 net.add_BatchNorm()
             net.add_Activation(self.g_act)
@@ -180,6 +187,7 @@ class DeepResidualModel(models.base.ModelBase):
         use_batch_norm = False
         kernel_size = (3,3)
         n_residuals = 1
+        use_self_attn = True
 
         #features
         features = models.base.SequentialContainer(image_shape)
@@ -199,6 +207,9 @@ class DeepResidualModel(models.base.ModelBase):
 
             for _ in range(n_residuals):
                 features.add_Residual(dim, kernel_size=kernel_size, activation=self.d_act, use_batch_norm=use_batch_norm)
+
+            if use_self_attn:
+                features.add_SelfAttention()
 
         features.add_Flatten()
 
