@@ -168,7 +168,7 @@ class SelfAttentionBlock(torch.nn.Module):
 
         out = out.view(m_batchsize, C, width, height)
 
-        out = x#self.gamma * out + x
+        out = self.gamma * out + x
         return out
 
 class NormBlock(torch.nn.Module):
