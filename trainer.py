@@ -234,6 +234,5 @@ class Trainer(object):
                 self.model.g_model.train()
 
             gen_samples = torch.clamp(gen_samples, -1., 1.)
-            res = gen_samples.data.cpu().numpy()
 
-        return res
+        return gen_samples

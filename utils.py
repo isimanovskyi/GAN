@@ -106,3 +106,13 @@ def get_torch_device():
         device = torch.device('cpu:0')
         logger.info('CUDA not available')
     return device
+
+def image_to_tensorboard(img):
+    """Add image data to summary.
+        Args:
+            img (torch.Tensor): Image data
+        Shape:
+            img: :math:`(3, H, W)`. Expect it in range -1, 1
+    """
+    img = 127.5 * (img + 1.)
+    return img.type(torch.ByteTensor)

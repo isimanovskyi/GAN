@@ -1,9 +1,11 @@
 import os, time
 import numpy as np
-
+import torch
 import traceback
-import logger
+import tensorboardX
+import torchvision
 
+import logger
 import utils
 import dataset.datasets
 import batch_gen
@@ -23,10 +25,11 @@ utils.flags.DEFINE_integer("image_size", 108, "The size of image to use (will be
 utils.flags.DEFINE_integer("output_size", 64, "The size of the output images to produce [64]")
 utils.flags.DEFINE_integer("sample_size", 64, "The number of sample images [64]")
 utils.flags.DEFINE_integer("sample_step", 500, "The interval of generating sample. [500]")
-utils.flags.DEFINE_integer("save_step", 100, "The interval of saveing checkpoints. [500]")
+utils.flags.DEFINE_integer("save_step", 1000, "The interval of saveing checkpoints. [500]")
 utils.flags.DEFINE_string("dataset", "celeba", "The name of dataset [celebA, mnist, lsun]")
 utils.flags.DEFINE_string("data_folder", "./data", "The path to data folder [./data]")
 utils.flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
+utils.flags.DEFINE_integer("checkpoint_it_to_load", -1, "Iteration to restore [-1]")
 utils.flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 utils.flags.DEFINE_string("log_dir", "log", "Directory name to save the logs [log]")
 utils.flags.DEFINE_integer("z_dim", 100, "Dimensions of generator input [100]")
@@ -38,10 +41,10 @@ FLAGS = utils.flags.FLAGS()
 
 
 def main(_):
-    checkpoint_file = 'checkpoint.npz'
     checkpoint = Checkpoint(FLAGS.checkpoint_dir)
     utils.exists_or_mkdir(FLAGS.sample_dir)
     utils.exists_or_mkdir(FLAGS.log_dir)
+    summaryWriter = tensorboardX.SummaryWriter(log_dir = FLAGS.log_dir)#torch.utils.tensorboard.SummaryWriter(log_dir = FLAGS.log_dir)
 
     logger.info('[Params] lr:%f, size:%d, dataset:%s, av_gen:%d'%(FLAGS.learning_rate, FLAGS.output_size, FLAGS.dataset, int(FLAGS.use_averaged_gen)))
 
@@ -72,7 +75,7 @@ def main(_):
     trainer.sub_batches = FLAGS.batch_per_update
     trainer.register_checkpoint(checkpoint)
 
-    it_start = checkpoint.load(checkpoint_file)
+    it_start = checkpoint.load(FLAGS.checkpoint_it_to_load)
 
     ##========================= LOAD CONTEXT ================================##
     context_path = os.path.join(FLAGS.checkpoint_dir, 'context.npz')
@@ -93,21 +96,6 @@ def main(_):
     ##========================= TRAIN MODELS ================================##
     batches_per_epoch = 10000
     total_time = 0
-
-    d_loss_array = []
-    time_array = []
-
-    score_array = []
-    score_time_array = []
-
-    #print('Pretraining discriminator')
-    #n_pretrain_steps = 100
-    #for i in range(n_pretrain_steps):
-    #    batch_z, batch_images = batch.get_batch()
-    #    errD, errS, _ = sess.run([d_loss_orig, s, d_optim], feed_dict={z: batch_z, real_images: batch_images })
-    #    if i % 10 == 0:
-    #        print ("[%2d/%2d]" % (i, n_pretrain_steps))
-    #print('Done')
 
     bLambdaSwitched = (it_start == 0)
     n_too_good_d = []
@@ -131,6 +119,12 @@ def main(_):
 #
         errD, s, errG, b_too_good_D = trainer.update(d_iter, 1)
 
+        summaryWriter.add_scalar('d_loss', errD, iter_counter)
+        summaryWriter.add_scalar('slope', s, iter_counter)
+        summaryWriter.add_scalar('g_loss', errG, iter_counter)
+        summaryWriter.add_scalar('loss', errD + float(lambd) * s**2, iter_counter)
+        summaryWriter.add_scalar('lambda', float(lambd), iter_counter)
+
         #updating lambda
         n_too_good_d.append(b_too_good_D)
         if len(n_too_good_d) > 20:
@@ -147,28 +141,22 @@ def main(_):
 
         logger.info("[%2d/%2d] time: %4.4f, d_loss: %.8f, s: %.4f, g_loss: %.8f" % (iter_counter, it_start + number_of_iterations, iter_time, errD, s, errG))
 
-        time_array.append(total_time)
-        d_loss_array.append(errD)
-
         if np.mod(iter_counter, FLAGS.sample_step) == 0 and it > 0:
-            img = trainer.sample(sample_seed)
-
             n = int(np.sqrt(FLAGS.sample_size))
-            utils.save_images(img, [n, n], './{}/train_{:02d}.png'.format(FLAGS.sample_dir, iter_counter))
-            logger.info("[Sample] d_loss: %.8f, g_loss: %.8f" % (errD, errG))
 
-            np.savez(os.path.join(FLAGS.log_dir, 'log.npz'), loss = d_loss_array, time = time_array)
+            img = trainer.sample(sample_seed)
+            img = img.data.cpu()
+
+            img_tb = utils.image_to_tensorboard(torchvision.utils.make_grid(img, n))
+            summaryWriter.add_image('samples',img_tb, iter_counter)
+
+            utils.save_images(img.data.cpu().numpy(), [n, n], './{}/train_{:02d}.png'.format(FLAGS.sample_dir, iter_counter))
 
         if np.mod(iter_counter, FLAGS.save_step) == 0 and it > 0:
-            logger.info("[*] Saving checkpoints...")
-            checkpoint.save(iter_counter, checkpoint_file)
-            logger.info("[*] Saving checkpoints SUCCESS!")
+            checkpoint.save(iter_counter)
 
-    logger.info("[*] Saving checkpoints...")
-    checkpoint.save(iter_counter, checkpoint_file)
-    logger.info("[*] Saving checkpoints SUCCESS!")
+    checkpoint.save(iter_counter)
 
-import threading
 if __name__ == '__main__':
     try:
         main('')

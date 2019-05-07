@@ -2,11 +2,13 @@ import os
 import torch
 import utils
 import logger
+import shutil
 
 class Checkpoint(object):
-    def __init__(self, checkpoint_dir):
+    def __init__(self, checkpoint_dir, file_prefix = 'chk'):
         self.modules = {}
         self.checkpoint_dir = checkpoint_dir;
+        self.file_prefix = file_prefix
         utils.exists_or_mkdir(checkpoint_dir)
 
     def register(self, name, obj, mandatory):
@@ -15,7 +17,16 @@ class Checkpoint(object):
 
         self.modules[name] = (obj, mandatory)
 
-    def save(self, it, filename):
+    def save(self, it):
+        logger.info("[*] Saving checkpoint ...")
+
+        if it > 0:
+            filename = self.file_prefix + '_' + str(it) + '.npz'
+            latest_filename = self.file_prefix + '.npz'
+        else:
+            filename = self.file_prefix + '.npz'
+            latest_filename = None
+
         filename = os.path.join(self.checkpoint_dir, filename)
         
         outdict = {'it':it}
@@ -24,7 +35,19 @@ class Checkpoint(object):
         
         torch.save(outdict, filename)
 
-    def load(self, filename):
+        if latest_filename is not None:
+            latest_filename = os.path.join(self.checkpoint_dir, latest_filename)
+            shutil.copyfile(filename, latest_filename)
+
+        logger.info("[*] Saving checkpoint SUCCESS!")
+
+    def load(self, it):
+        logger.info("[*] Loading checkpoint ...")
+        if it > 0:
+            filename = self.file_prefix + '_' + str(it) + '.npz'
+        else:
+            filename = self.file_prefix + '.npz'
+
         filename = os.path.join(self.checkpoint_dir, filename)
 
         if not os.path.exists(filename):
