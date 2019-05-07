@@ -1,12 +1,15 @@
 import numpy as np
 import logger
 
-class Constant(object):
+class LambdaScheduler(object):
     def __init__(self, lambd):
         self.lambd = lambd
 
     def update(self, errD):
-        return False
+        raise NotImplemented('This is abstract method')
+
+    def switch(self):
+        raise NotImplemented('This is abstract method')
 
     def __float__(self):
         return self.lambd
@@ -18,9 +21,22 @@ class Constant(object):
         if not isinstance(value, float):
             raise ValueError('should be float')
 
-        #self.lambd = value
+        self.lambd = value
+    
+class Constant(LambdaScheduler):
+    def update(self, errD):
+        return False
 
-class ThresholdAnnealing(object):
+    def switch(self):
+        return False
+
+    def state_dict(self):
+        return { 'lambda': self.lambd }
+
+    def load_state_dict(self, state_dict):
+        self.lambd = state_dict['lambda']
+
+class ThresholdAnnealing(LambdaScheduler):
     def __init__(self, lambd, beta=0.99, threshold=1.1, min_switch_step=1000, verbose=False):
         self.verbose = verbose
         self.lambd = lambd
@@ -68,14 +84,18 @@ class ThresholdAnnealing(object):
             logger.info("lambda: %.8f, %d, %d" % (self.get_average(), self.step_hit, self.step_switched))
         return bSwitch
 
-    def __float__(self):
-        return self.lambd
+    def state_dict(self):
+        return {
+        'lambda': self.lambd,
+        'errD_av':self.errD_av,
+        'step':self.step,
+        'step_hit':self.step_hit,
+        'step_switched':self.step_switched,
+        }
 
-    def get(self):
-        return self.lambd
-
-    def set(self, value):
-        if not isinstance(value, float):
-            raise ValueError('should be float')
-
-        self.lambd = value
+    def load_state_dict(self, state_dict):
+        self.lambd = state_dict['lambda']
+        self.errD_av = state_dict['errD_av']
+        self.step = state_dict['step']
+        self.step_hit = state_dict['step_hit']
+        self.step_switched = state_dict['step_switched']
