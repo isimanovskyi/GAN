@@ -20,6 +20,10 @@ class TROptimizer(object):
     def load_state_dict(self, state_dict):
         self.opt.load_state_dict(state_dict)
 
+    @property
+    def param_groups(self):
+        return self.opt.param_groups
+
     def step(self, closure=None):
         with torch.no_grad():
             old_params = {}

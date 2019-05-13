@@ -79,14 +79,24 @@ class Trainer(object):
         self.g_scheduler.step()
 
     def _init_optimizer(self, lr):
+        self.lr_d = lr
+        self.lr_g = lr/2.
+
         d_vars, g_vars = self.model.get_weights()
 
-        self.d_optim = torch.optim.RMSprop(d_vars, lr)
+        self.d_optim = torch.optim.RMSprop(d_vars, self.lr_d)
         #self.g_optim = torch.optim.RMSprop(g_vars, lr)
-        self.g_optim = optimizers.TROptimizer(self._g_opt_loss, torch.optim.RMSprop(g_vars, lr/2., weight_decay=0.), delta=0.2, verbose=True)
+        self.g_optim = optimizers.TROptimizer(self._g_opt_loss, torch.optim.RMSprop(g_vars, self.lr_g, weight_decay=0.), delta=0.2, verbose=True)
 
         self.d_scheduler = optimizers.LrLambdaScheduler(self.d_optim, self._lr_warmup_schedule)
         self.g_scheduler = optimizers.LrLambdaScheduler(self.g_optim.opt, self._lr_warmup_schedule)
+
+    def update_lr(self):
+        for g in self.d_optim.param_groups:
+            g['lr'] = self.lr_d
+
+        for g in self.g_optim.param_groups:
+            g['lr'] = self.lr_g
 
     def register_checkpoint(self, checkpoint):
         checkpoint.register('trainer\d_opt', self.d_optim, True)
@@ -118,6 +128,8 @@ class Trainer(object):
         if reg is not None:
             d_reg = float(self.lambd) * reg
             d_reg.backward()
+        else:
+            reg = torch.tensor([0.])
         return d_loss, reg
 
     def update_d(self, n_steps):

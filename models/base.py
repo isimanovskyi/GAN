@@ -299,7 +299,7 @@ class SequentialContainer(object):
             raise ValueError('Input is not Convolutional')
 
         self.layers.append(torch.nn.UpsamplingNearest2d(size=None, scale_factor=scale_factor))
-        self.input_shape = (self.input_shape[0], scale_factor*self.input_shape[1], scale_factor*self.input_shape[2])
+        self.input_shape = (self.input_shape[0], int(scale_factor*self.input_shape[1]), int(scale_factor*self.input_shape[2]))
 
     def get(self):
         return SequentialModel(*self.layers)
@@ -344,7 +344,7 @@ class ModelBase(object):
         self.d_model.to(device = device)
 
         self.g_model = self._get_generator(z_shape=z_shape, image_shape=image_shape)
-        self.g_model.apply(functools.partial(self.init_weights, sigma=0.01))
+        self.g_model.apply(functools.partial(self.init_weights, sigma=0.005))
         self.g_model.to(device = device)
 
         if use_av_gen:

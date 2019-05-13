@@ -37,12 +37,13 @@ class Constant(LambdaScheduler):
         self.lambd = state_dict['lambda']
 
 class ThresholdAnnealing(LambdaScheduler):
-    def __init__(self, lambd, beta=0.99, threshold=1.1, min_switch_step=1000, verbose=False):
+    def __init__(self, lambd, beta=0.99, threshold=1.1, min_switch_step=1000, min_lambda=1., verbose=False):
         self.verbose = verbose
         self.lambd = lambd
         self.beta = beta
         self.threshold = threshold
         self.min_switch_step = min_switch_step
+        self.min_lambda = min_lambda
         
         self.errD_av = 0.
         self.step = 0
@@ -57,9 +58,13 @@ class ThresholdAnnealing(LambdaScheduler):
         if self.step < self.step_switched + 100:
             return False
 
+        if self.lambd <= self.min_lambda:
+            return False
+
         self.lambd /= 2.
+
         self.step_switched = self.step
-        logger.event('[%d] lambda switched: from %4.4f to %4.4f; %.8f' % (self.step, self.lambd * 2, self.lambd, self.get_average()))
+        logger.event('[%d] lambda switched: from %4.4f to %4.4f; %.8f' % (self.step, self.lambd*2, self.lambd, self.get_average()))
         return True
 
     def update(self, errD):
@@ -90,7 +95,7 @@ class ThresholdAnnealing(LambdaScheduler):
         'errD_av':self.errD_av,
         'step':self.step,
         'step_hit':self.step_hit,
-        'step_switched':self.step_switched,
+        'step_switched':self.step_switched
         }
 
     def load_state_dict(self, state_dict):

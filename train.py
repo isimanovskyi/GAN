@@ -46,7 +46,8 @@ def main(_):
     utils.exists_or_mkdir(FLAGS.log_dir)
     summaryWriter = tensorboardX.SummaryWriter(log_dir = FLAGS.log_dir)#torch.utils.tensorboard.SummaryWriter(log_dir = FLAGS.log_dir)
 
-    logger.info('[Params] lr:%f, size:%d, dataset:%s, av_gen:%d'%(FLAGS.learning_rate, FLAGS.output_size, FLAGS.dataset, int(FLAGS.use_averaged_gen)))
+    logger.info('[Params] lr:%f, size:%d, dataset:%s, av_gen:%d, n_disc:%d'%
+                (FLAGS.learning_rate, FLAGS.output_size, FLAGS.dataset, int(FLAGS.use_averaged_gen), FLAGS.n_discriminator))
 
     #dataset
     z_shape = (FLAGS.z_dim,)
@@ -62,7 +63,12 @@ def main(_):
     device = utils.get_torch_device()
 
     #model
-    nn_model = models.model_factory.create_model(FLAGS.model_name, device=device, image_shape=image_shape,z_shape=z_shape, use_av_gen=FLAGS.use_averaged_gen)
+    nn_model = models.model_factory.create_model(FLAGS.model_name,
+                                                 device=device,
+                                                 image_shape=image_shape,
+                                                 z_shape=z_shape,
+                                                 use_av_gen=FLAGS.use_averaged_gen,
+                                                 g_tanh=False)
     nn_model.register_checkpoint(checkpoint)
 
     loss = gan_loss.js_loss()
@@ -76,6 +82,8 @@ def main(_):
     trainer.register_checkpoint(checkpoint)
 
     it_start = checkpoint.load(FLAGS.checkpoint_it_to_load)
+
+    trainer.update_lr()
 
     ##========================= LOAD CONTEXT ================================##
     context_path = os.path.join(FLAGS.checkpoint_dir, 'context.npz')

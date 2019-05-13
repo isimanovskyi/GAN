@@ -137,8 +137,8 @@ class DeepResidualModel(models.base.ModelBase):
         gf_dim = 64  # Dimension of gen filters in first conv layer. [64]
         k_size = (3,3)
         n_residuals = 3
-        use_self_attn = True
-        use_upsample = False
+        use_self_attn = False
+        use_upsample = True
 
         net = models.base.SequentialContainer(z_shape)
 
@@ -187,7 +187,8 @@ class DeepResidualModel(models.base.ModelBase):
         use_batch_norm = False
         kernel_size = (3,3)
         n_residuals = 3
-        use_self_attn = True
+        use_self_attn = False
+        use_upsample = False
 
         #features
         features = models.base.SequentialContainer(image_shape)
@@ -199,8 +200,11 @@ class DeepResidualModel(models.base.ModelBase):
             if dim > 1024:
                 dim = 1024
             #
-            features.add_Conv2D(dim, kernel_size=kernel_size, strides=(2, 2),
-                                padding=models.base.get_same_padding(kernel_size))
+            if use_upsample:
+                features.add_Upsample2d(0.5)
+            else:
+                features.add_Conv2D(dim, kernel_size=kernel_size, strides=(2, 2),
+                                    padding=models.base.get_same_padding(kernel_size))
             if use_batch_norm:
                 features.add_BatchNorm()
             features.add_Activation(self.d_act)
